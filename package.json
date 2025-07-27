@@ -1,0 +1,7 @@
+{
+  "scripts": {
+    "dev:backend": "cd backend && npx nodemon src/index.js",
+    "dev:web": "cd web-admin && npm start",
+    "dev:desktop": "cd desktop && npm run start"
+  }
+}
