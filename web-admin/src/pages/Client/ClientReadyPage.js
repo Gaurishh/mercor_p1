@@ -127,7 +127,7 @@ const ClientReadyPage = () => {
           </p>
           
           <a 
-            href="/downloads/timetracker-setup.exe" 
+            href="https://github.com/Gaurishh/mercor_p1-releases/releases/latest/download/Inciteful-Desktop-v1.0.0.zip" 
             download
             style={{
               ...createButtonStyle('primary', 'lg'),

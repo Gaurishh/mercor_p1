@@ -144,7 +144,7 @@ const Sidebar = ({ onNavigate, activeView, lightMode = false }) => {
           Desktop App
         </h4>
         <a 
-          href="/desktop/releases/inciteful-timetracker-setup.exe" 
+          href="https://github.com/Gaurishh/mercor_p1-releases/releases/latest/download/Inciteful-Desktop-v1.0.0.zip" 
           download 
           style={{
             ...createButtonStyle('success', 'md'),

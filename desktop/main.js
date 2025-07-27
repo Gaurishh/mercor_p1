@@ -101,16 +101,71 @@ function createWindow() {
   });
 
   // Wait for React dev server to be ready
+  // ... existing code ...
+
+  // Wait for React dev server to be ready
   const loadURL = async () => {
     try {
       console.log('About to load React app...');
-      await win.loadURL('http://localhost:3001');
+      
+      // Always try built files first in packaged app
+      const indexPath = path.join(__dirname, 'build', 'index.html');
+      console.log('Loading from built files:', indexPath);
+      console.log('File exists:', fs.existsSync(indexPath));
+      
+      if (!fs.existsSync(indexPath)) {
+        throw new Error(`Build file not found: ${indexPath}`);
+      }
+      
+      await win.loadFile(indexPath);
       console.log('Successfully loaded React app');
+      
+      // Add error handling for page load
+      win.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+        console.error('Page failed to load:', { errorCode, errorDescription, validatedURL });
+      });
+      
+      win.webContents.on('did-finish-load', () => {
+        console.log('Page finished loading successfully');
+        // Check if React app is working
+        win.webContents.executeJavaScript(`
+          console.log('Checking React app...');
+          console.log('document.getElementById("root"):', document.getElementById("root"));
+          console.log('window.React:', window.React);
+          console.log('window.ReactDOM:', window.ReactDOM);
+          console.log('document.body.innerHTML:', document.body.innerHTML.substring(0, 200));
+        `);
+      });
+      
     } catch (error) {
-      console.log('React server not ready yet, retrying in 2 seconds...');
-      setTimeout(loadURL, 2000);
+      console.error('Failed to load React app:', error.message);
+      
+      // Show error to user
+      win.loadURL(`data:text/html,
+        <html>
+          <head>
+            <title>Error - Inciteful</title>
+            <style>
+              body { font-family: Arial, sans-serif; padding: 20px; text-align: center; background: #f5f5f5; }
+              .error { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+              .error h2 { color: #e53e3e; }
+              .error pre { background: #f7f7f7; padding: 10px; border-radius: 4px; text-align: left; overflow-x: auto; }
+            </style>
+          </head>
+          <body>
+            <div class="error">
+              <h2>Failed to load application</h2>
+              <p><strong>Error:</strong> ${error.message}</p>
+              <p>Please check the console for more details.</p>
+              <pre>${error.stack}</pre>
+            </div>
+          </body>
+        </html>
+      `);
     }
   };
+
+  // ... existing code ...
 
   loadURL();
   
