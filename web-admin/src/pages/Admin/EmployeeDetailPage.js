@@ -108,7 +108,7 @@ const EmployeeDetailPage = () => {
       // Provide more helpful error messages
       let errorMessage = 'Failed to take screenshot';
       if (err.response?.status === 404) {
-        errorMessage = 'Employee desktop app is not running. Please ask the employee to log into their desktop application and try again.';
+        errorMessage = 'Employee IP address not available. Please ask employee to log in again.';
       } else if (err.response?.data?.error) {
         errorMessage = err.response.data.error;
       } else if (err.message) {
@@ -464,6 +464,33 @@ const EmployeeDetailPage = () => {
                     }}>
                       {employee.gender}
                     </span>
+                  </div>
+
+                  <div>
+                    <label style={{
+                      fontSize: typography.fontSize.sm,
+                      fontWeight: typography.fontWeight.medium,
+                      color: colors.gray[700],
+                      marginBottom: spacing[1],
+                      display: 'block',
+                    }}>
+                      IP ADDRESS
+                    </label>
+                    <span style={{
+                      fontSize: typography.fontSize.base,
+                      color: colors.gray[900],
+                    }}>
+                      {employee.ipAddress || 'Not available'}
+                    </span>
+                    {employee.lastLoginAt && (
+                      <span style={{
+                        fontSize: typography.fontSize.sm,
+                        color: colors.gray[500],
+                        marginLeft: spacing[2],
+                      }}>
+                        (Last updated: {new Date(employee.lastLoginAt).toLocaleString()})
+                      </span>
+                    )}
                   </div>
                 </div>
 

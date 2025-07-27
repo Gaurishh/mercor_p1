@@ -8,8 +8,9 @@ import Attendance from './Attendance';
 import Tasks from './Projects';
 import AuthPage from './AuthPage';
 import AdminRedirect from './AdminRedirect';
+import Toast from './Toast';
 import { store } from './store';
-import { setAuth, clearAuth } from './store';
+import { setAuth, clearAuth, stopWork } from './store';
 
 // API Configuration
 const API_BASE = 'http://localhost:4000/api';
@@ -74,6 +75,162 @@ const TestComponent = () => {
       <h3>Redux Test</h3>
       <p>Auth State: {JSON.stringify(auth)}</p>
     </div>
+  );
+};
+
+// Deactivation Message Component
+const DeactivationMessage = () => (
+  <div style={{
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: '100%',
+    padding: spacing[8],
+    textAlign: 'center',
+  }}>
+    <div style={{
+      width: '80px',
+      height: '80px',
+      borderRadius: '50%',
+      background: colors.warning[100],
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: spacing[6],
+    }}>
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={colors.warning[600]} strokeWidth="2">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="8" x2="12" y2="12"></line>
+        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+      </svg>
+    </div>
+    
+    <h2 style={{
+      fontSize: typography.fontSize.xl,
+      fontWeight: typography.fontWeight.bold,
+      color: colors.gray[900],
+      margin: 0,
+      marginBottom: spacing[4],
+    }}>
+      Account Deactivated
+    </h2>
+    
+    <p style={{
+      fontSize: typography.fontSize.lg,
+      color: colors.gray[700],
+      margin: 0,
+      maxWidth: '500px',
+      lineHeight: 1.6,
+    }}>
+      In order to clock in time or view tasks, activate yourself from the side menu.
+    </p>
+    
+    <div style={{
+      marginTop: spacing[6],
+      padding: spacing[4],
+      background: colors.info[50],
+      borderRadius: borderRadius.lg,
+      border: `1px solid ${colors.info[200]}`,
+      maxWidth: '400px',
+    }}>
+      <p style={{
+        fontSize: typography.fontSize.sm,
+        color: colors.info[700],
+        margin: 0,
+        lineHeight: 1.5,
+      }}>
+        <strong>How to activate:</strong> Click the menu icon (☰) in the top left corner, then click the "Activate" button in the sidebar.
+      </p>
+    </div>
+  </div>
+);
+
+// Confirmation Modal Component
+const ConfirmationModal = ({ isOpen, title, message, onProceed, onCancel }) => {
+  if (!isOpen) return null;
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div 
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.5)',
+          zIndex: 2000,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+        onClick={onCancel}
+      >
+        {/* Modal */}
+        <div 
+          style={{
+            background: colors.background.primary,
+            borderRadius: borderRadius.xl,
+            padding: spacing[6],
+            maxWidth: '400px',
+            width: '90%',
+            boxShadow: shadows['2xl'],
+            border: `1px solid ${colors.gray[200]}`,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Title */}
+          <h3 style={{
+            fontSize: typography.fontSize.lg,
+            fontWeight: typography.fontWeight.bold,
+            color: colors.gray[900],
+            margin: 0,
+            marginBottom: spacing[3],
+          }}>
+            {title}
+          </h3>
+          
+          {/* Message */}
+          <p style={{
+            fontSize: typography.fontSize.base,
+            color: colors.gray[700],
+            margin: 0,
+            marginBottom: spacing[6],
+            lineHeight: 1.5,
+          }}>
+            {message}
+          </p>
+          
+          {/* Buttons */}
+          <div style={{
+            display: 'flex',
+            gap: spacing[3],
+            justifyContent: 'flex-end',
+          }}>
+            <button
+              onClick={onCancel}
+              style={{
+                ...createButtonStyle('secondary', 'md'),
+                minWidth: '80px',
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onProceed}
+              style={{
+                ...createButtonStyle('danger', 'md'),
+                minWidth: '80px',
+              }}
+            >
+              Proceed
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
   );
 };
 
@@ -151,10 +308,50 @@ const Navigation = ({ activeTab, onTabChange, onSignOut, showSideMenu, setShowSi
 const App = () => {
   const dispatch = useDispatch();
   const { employeeId, isAdmin } = useSelector(state => state.auth);
-  const { isWorking, timeLogId } = useSelector(state => state.timer);
   const [activeTab, setActiveTab] = useState('attendance');
   const [showSideMenu, setShowSideMenu] = useState(false);
   const [isTakingScreenshot, setIsTakingScreenshot] = useState(false);
+  const [isActive, setIsActive] = useState(true);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [confirmationData, setConfirmationData] = useState(null);
+  const [employeeData, setEmployeeData] = useState(null);
+  const [toast, setToast] = useState({ message: '', isVisible: false });
+
+  // Function to show toast
+  const showToast = (message) => {
+    console.log('showToast called with message:', message);
+    setToast({ message, isVisible: true });
+    setTimeout(() => {
+      console.log('Auto-dismissing toast');
+      setToast({ message: '', isVisible: false });
+    }, 3000);
+  };
+
+  // Listen for screenshot toast events
+  useEffect(() => {
+    console.log('Setting up screenshot toast listener...');
+    console.log('window.electronAPI available:', !!window.electronAPI);
+    console.log('window.electronAPI.onScreenshotToast available:', !!window.electronAPI?.onScreenshotToast);
+    
+    if (window.electronAPI && window.electronAPI.onScreenshotToast) {
+      const handleScreenshotToast = (event, toastData) => {
+        console.log('Received screenshot toast event:', toastData);
+        showToast(toastData.message);
+      };
+      
+      window.electronAPI.onScreenshotToast(handleScreenshotToast);
+      console.log('Screenshot toast listener set up successfully');
+      
+      return () => {
+        if (window.electronAPI.removeScreenshotToastListener) {
+          window.electronAPI.removeScreenshotToastListener(handleScreenshotToast);
+          console.log('Screenshot toast listener cleaned up');
+        }
+      };
+    } else {
+      console.error('Screenshot toast listener not available');
+    }
+  }, []);
 
   // Check for existing authentication on app start
   useEffect(() => {
@@ -200,8 +397,201 @@ const App = () => {
     };
   }, [showSideMenu]);
 
+  // Function to get local IP address
+  const getLocalIPAddress = async () => {
+    try {
+      // Method 1: Use Node.js os module (if available)
+      if (window.require) {
+        const os = window.require('os');
+        const interfaces = os.networkInterfaces();
+        
+        console.log('Available network interfaces:', Object.keys(interfaces));
+        
+        // Priority order: Ethernet, WiFi, then others
+        const priorityOrder = ['Ethernet', 'Wi-Fi', 'WiFi', 'WLAN', 'Local Area Connection'];
+        
+        // First try priority interfaces
+        for (const priorityName of priorityOrder) {
+          if (interfaces[priorityName]) {
+            for (const iface of interfaces[priorityName]) {
+              if (iface.family === 'IPv4' && !iface.internal) {
+                console.log(`Found IP on priority interface ${priorityName}:`, iface.address);
+                return iface.address;
+              }
+            }
+          }
+        }
+        
+        // Then try all other interfaces
+        for (const name of Object.keys(interfaces)) {
+          for (const iface of interfaces[name]) {
+            // Skip internal and non-IPv4 addresses
+            if (iface.family === 'IPv4' && !iface.internal) {
+              console.log(`Found IP on interface ${name}:`, iface.address);
+              return iface.address;
+            }
+          }
+        }
+        
+        console.log('No suitable local IP found, falling back to localhost');
+      }
+      
+      // Method 2: Try to get local IP via HTTP request to our own server
+      try {
+        const response = await fetch('http://localhost:3003/health');
+        const data = await response.json();
+        if (data.ipAddress && data.ipAddress !== 'localhost') {
+          console.log('Got IP from health endpoint:', data.ipAddress);
+          return data.ipAddress;
+        }
+      } catch (healthError) {
+        console.log('Health endpoint not available:', healthError.message);
+      }
+      
+      // Method 3: Fallback to localhost (for same-machine testing)
+      console.log('Using localhost as fallback');
+      return 'localhost';
+    } catch (error) {
+      console.error('Failed to get IP address:', error);
+      return 'localhost'; // Fallback
+    }
+  };
+
+  // Update IP address when employee logs in
+  const updateEmployeeIP = async (employeeId) => {
+    try {
+      const ipAddress = await getLocalIPAddress();
+      
+      const response = await axios.post(`${API_BASE}/employees/update-ip`, {
+        employeeId: employeeId,
+        ipAddress: ipAddress
+      });
+      
+      if (response.data.success) {
+        console.log('IP address updated successfully:', ipAddress);
+      }
+    } catch (error) {
+      console.error('Failed to update IP address:', error);
+    }
+  };
+
+  // Fetch employee data including active status
+  const fetchEmployeeData = async (employeeId) => {
+    try {
+      const response = await axios.get(`${API_BASE}/employees/${employeeId}`);
+      setEmployeeData(response.data);
+      setIsActive(response.data.isActive);
+    } catch (error) {
+      console.error('Failed to fetch employee data:', error);
+    }
+  };
+
+  // Handle toggle status button click
+  const handleToggleStatusClick = () => {
+    const action = isActive ? 'deactivate' : 'activate';
+    setConfirmationData({
+      title: 'Confirm Status Change',
+      message: `Are you sure you want to ${action} your account?`,
+      action: action
+    });
+    setShowConfirmation(true);
+  };
+
+  // Handle confirmation modal proceed
+  const handleConfirmProceed = async () => {
+    try {
+      console.log('Starting deactivation process...');
+      console.log('Current timer state:', { isWorking, timeLogId });
+      
+      const response = await axios.patch(`${API_BASE}/employees/toggle-self-status`, {
+        employeeId: employeeId
+      });
+      
+      if (response.data.success) {
+        const newIsActive = response.data.employee.isActive;
+        console.log('Status toggle response:', response.data);
+        console.log('New active status:', newIsActive);
+        
+        setIsActive(newIsActive);
+        setEmployeeData(response.data.employee);
+        
+        // If deactivating, perform automatic clock-out
+        if (!newIsActive) {
+          console.log('Deactivating - performing automatic clock-out...');
+          await performAutomaticClockOut();
+        }
+        
+        alert(`Account ${newIsActive ? 'activated' : 'deactivated'} successfully!`);
+      }
+    } catch (error) {
+      console.error('Failed to toggle status:', error);
+      alert('Failed to update status. Please try again.');
+    } finally {
+      setShowConfirmation(false);
+      setConfirmationData(null);
+    }
+  };
+
+  // Handle confirmation modal cancel
+  const handleConfirmCancel = () => {
+    setShowConfirmation(false);
+    setConfirmationData(null);
+  };
+
+  // Get timer state from Redux
+  const { isWorking, timeLogId } = useSelector(state => state.timer);
+
+  // Automatic clock-out function (for use in event listeners)
+  const performAutomaticClockOut = async () => {
+    try {
+      console.log('performAutomaticClockOut called');
+      console.log('Timer state in performAutomaticClockOut:', { isWorking, timeLogId });
+      
+      if (isWorking && timeLogId) {
+        console.log('Performing automatic clock-out from event listener...');
+        console.log('Making API call to:', `http://localhost:4000/api/timelogs/${timeLogId}/clockout`);
+        
+        // Call the clock-out API
+        const response = await axios.patch(`http://localhost:4000/api/timelogs/${timeLogId}/clockout`);
+        console.log('Clock-out API response:', response.data);
+        
+        // Update Redux state to stop work
+        dispatch(stopWork());
+        
+        console.log('Automatic clock-out completed successfully');
+      } else {
+        console.log('No active timer found - skipping clock-out');
+        console.log('isWorking:', isWorking, 'timeLogId:', timeLogId);
+      }
+    } catch (error) {
+      console.error('Failed to perform automatic clock-out:', error);
+      console.error('Error details:', error.response?.data || error.message);
+    }
+  };
+
+  // Enhanced sign out with automatic clock-out
+  const handleSignOut = async () => {
+    try {
+      // Perform automatic clock-out first
+      await performAutomaticClockOut();
+      
+      // Then proceed with sign out
+      dispatch(clearAuth());
+    } catch (error) {
+      console.error('Error during sign out:', error);
+      // Still proceed with sign out even if clock-out fails
+    dispatch(clearAuth());
+    }
+  };
+
   useEffect(() => {
     if (employeeId) {
+      // Fetch employee data including active status
+      fetchEmployeeData(employeeId);
+      
+      // Update IP address when employee logs in
+      updateEmployeeIP(employeeId);
+      
       // Set employee ID in Electron main process for remote screenshot requests
       if (window.electronAPI && window.electronAPI.setEmployeeId) {
         window.electronAPI.setEmployeeId(employeeId);
@@ -220,9 +610,23 @@ const App = () => {
     }
   }, [employeeId]);
 
-  const handleSignOut = () => {
-    dispatch(clearAuth());
-  };
+  // Handle window close/unload events
+  useEffect(() => {
+    const handleBeforeUnload = async (event) => {
+      if (isWorking) {
+        // Perform automatic clock-out before the page unloads
+        await performAutomaticClockOut();
+      }
+    };
+
+    // Add event listener for page unload
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    // Cleanup event listener
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isWorking]); // Add isWorking as dependency
 
   const handleTakeScreenshot = async () => {
     if (isTakingScreenshot) return;
@@ -461,6 +865,47 @@ const App = () => {
                 padding: spacing[4],
                 flex: 1,
               }}>
+                {/* Status Section */}
+                <div style={{
+                  marginBottom: spacing[4],
+                  padding: spacing[3],
+                  background: colors.gray[50],
+                  borderRadius: borderRadius.lg,
+                  border: `1px solid ${colors.gray[200]}`,
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: spacing[2],
+                    marginBottom: spacing[3],
+                  }}>
+                    <div style={{
+                      width: '12px',
+                      height: '12px',
+                      borderRadius: '50%',
+                      background: isActive ? colors.success[500] : colors.error[500],
+                    }} />
+                    <span style={{
+                      fontSize: typography.fontSize.sm,
+                      fontWeight: typography.fontWeight.medium,
+                      color: colors.gray[700],
+                    }}>
+                      Status: {isActive ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
+                  
+                  <button
+                    onClick={handleToggleStatusClick}
+                    style={{
+                      ...createButtonStyle(isActive ? 'danger' : 'success', 'sm'),
+                      width: '100%',
+                      fontSize: typography.fontSize.sm,
+                    }}
+                  >
+                    {isActive ? 'Deactivate' : 'Activate'}
+                  </button>
+                </div>
+                
                 <button
                   onClick={handleTakeScreenshot}
                   disabled={isTakingScreenshot}
@@ -519,9 +964,31 @@ const App = () => {
             paddingTop: '72px', // Account for fixed navigation height
           }}
         >
-          {activeTab === 'attendance' && <Attendance />}
+          {isActive ? (
+            <>
+              {activeTab === 'attendance' && <Attendance isActive={isActive} />}
           {activeTab === 'projects' && <Tasks />}
+            </>
+          ) : (
+            <DeactivationMessage />
+          )}
         </div>
+        
+        {/* Confirmation Modal */}
+        <ConfirmationModal
+          isOpen={showConfirmation}
+          title={confirmationData?.title || ''}
+          message={confirmationData?.message || ''}
+          onProceed={handleConfirmProceed}
+          onCancel={handleConfirmCancel}
+        />
+
+        {/* Toast Notification */}
+        <Toast 
+          message={toast.message}
+          isVisible={toast.isVisible}
+          onClose={() => setToast({ message: '', isVisible: false })}
+        />
       </div>
     </div>
   );

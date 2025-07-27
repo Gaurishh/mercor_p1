@@ -216,4 +216,91 @@ router.patch('/:_id/toggle-status', async (req, res) => {
   }
 });
 
+// POST /update-ip - Update employee's IP address
+router.post('/update-ip', async (req, res) => {
+  try {
+    const { employeeId, ipAddress } = req.body;
+    
+    if (!employeeId || !ipAddress) {
+      return res.status(400).json({ error: 'Employee ID and IP address required' });
+    }
+    
+    const employee = await Employee.findByIdAndUpdate(
+      employeeId,
+      { 
+        ipAddress: ipAddress,
+        lastLoginAt: new Date()
+      },
+      { new: true }
+    ).select('-passwordHash');
+    
+    if (!employee) {
+      return res.status(404).json({ error: 'Employee not found' });
+    }
+    
+    res.json({ 
+      success: true, 
+      employee: employee,
+      message: 'IP address updated successfully'
+    });
+  } catch (err) {
+    console.error('Error updating employee IP:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /test-ip/:employeeId - Test endpoint to check employee IP
+router.get('/test-ip/:employeeId', async (req, res) => {
+  try {
+    const employee = await Employee.findById(req.params.employeeId).select('ipAddress lastLoginAt');
+    
+    if (!employee) {
+      return res.status(404).json({ error: 'Employee not found' });
+    }
+    
+    res.json({
+      employeeId: req.params.employeeId,
+      ipAddress: employee.ipAddress,
+      lastLoginAt: employee.lastLoginAt,
+      hasIP: !!employee.ipAddress
+    });
+  } catch (err) {
+    console.error('Error checking employee IP:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PATCH /toggle-self-status - Allow employee to toggle their own active status
+router.patch('/toggle-self-status', async (req, res) => {
+  try {
+    const { employeeId } = req.body;
+    
+    if (!employeeId) {
+      return res.status(400).json({ error: 'Employee ID required' });
+    }
+    
+    // Find current employee
+    const employee = await Employee.findById(employeeId);
+    if (!employee) {
+      return res.status(404).json({ error: 'Employee not found' });
+    }
+    
+    // Toggle the isActive status
+    employee.isActive = !employee.isActive;
+    await employee.save();
+    
+    // Return updated employee object (without password)
+    const { passwordHash: _, ...employeeObj } = employee.toObject();
+    
+    res.json({
+      success: true,
+      employee: employeeObj,
+      message: `Employee ${employee.isActive ? 'activated' : 'deactivated'} successfully`
+    });
+  } catch (err) {
+    console.error('Error toggling employee status:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router; 

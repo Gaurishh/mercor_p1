@@ -7,7 +7,35 @@ const url = require('url');
 // Global variables
 let mainWindow;
 let httpServer;
-let currentEmployeeId = null; // Will be set when employee logs in
+let currentEmployeeId;
+let isClockOutRequested = false;
+
+// Function to perform automatic clock-out
+async function performAutomaticClockOut() {
+  if (isClockOutRequested) return; // Prevent multiple calls
+  isClockOutRequested = true;
+  
+  try {
+    if (currentEmployeeId) {
+      console.log('Performing automatic clock-out for employee:', currentEmployeeId);
+      
+      // Get active time log for the employee
+      const axios = require('axios');
+      const timeLogsResponse = await axios.get(`http://localhost:4000/api/timelogs?employeeId=${currentEmployeeId}`);
+      const activeLog = timeLogsResponse.data.find(log => !log.clockOut);
+      
+      if (activeLog) {
+        console.log('Found active time log, performing clock-out...');
+        await axios.patch(`http://localhost:4000/api/timelogs/${activeLog._id}/clockout`);
+        console.log('Automatic clock-out completed successfully');
+      } else {
+        console.log('No active time log found for automatic clock-out');
+      }
+    }
+  } catch (error) {
+    console.error('Failed to perform automatic clock-out:', error);
+  }
+}
 
 function createWindow() {
   const preloadPath = path.resolve(__dirname, 'preload.js');
@@ -28,6 +56,7 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 400,
     height: 720,
+    title: 'Inciteful',
     webPreferences: {
       // point to your preload script
       preload: preloadPath,
@@ -43,7 +72,7 @@ function createWindow() {
   });
 
   mainWindow = win;
-  win.webContents.openDevTools({ mode: 'detach' });
+  // win.webContents.openDevTools({ mode: 'detach' });
   
   // Add error handling for preload script
   win.webContents.on('preload-error', (event, preloadPath, error) => {
@@ -136,11 +165,31 @@ function createHttpServer() {
     
     try {
       if (pathname === '/health' && req.method === 'GET') {
+        // Get local IP address
+        const os = require('os');
+        let localIP = 'localhost';
+        
+        try {
+          const interfaces = os.networkInterfaces();
+          for (const name of Object.keys(interfaces)) {
+            for (const iface of interfaces[name]) {
+              if (iface.family === 'IPv4' && !iface.internal) {
+                localIP = iface.address;
+                break;
+              }
+            }
+            if (localIP !== 'localhost') break;
+          }
+        } catch (error) {
+          console.error('Failed to get local IP:', error);
+        }
+        
         // Health check endpoint
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
           status: 'ok',
           employeeId: currentEmployeeId,
+          ipAddress: localIP,
           timestamp: new Date().toISOString()
         }));
         
@@ -332,6 +381,19 @@ ipcMain.handle('open-external', async (event, url) => {
 
 // IPC handler for taking screenshots (existing functionality)
 ipcMain.handle('take-screenshot', async (event) => {
+  console.log('take-screenshot IPC handler called');
+  
+  // Emit toast start event
+  if (mainWindow) {
+    console.log('Emitting start toast event');
+    mainWindow.webContents.send('screenshot-toast', { 
+      type: 'start', 
+      message: 'Taking screenshot...' 
+    });
+  } else {
+    console.log('mainWindow not available for toast emission');
+  }
+
   try {
     // Ensure screenshots directory exists
     const screenshotsDir = path.join(__dirname, 'screenshots');
@@ -346,6 +408,14 @@ ipcMain.handle('take-screenshot', async (event) => {
     });
 
     if (sources.length === 0) {
+      // Emit error toast
+      if (mainWindow) {
+        console.log('Emitting error toast: No displays found');
+        mainWindow.webContents.send('screenshot-toast', { 
+          type: 'error',
+          message: 'Screenshot failed: No displays found'
+        });
+      }
       return { 
         success: false, 
         error: 'No displays found',
@@ -359,6 +429,14 @@ ipcMain.handle('take-screenshot', async (event) => {
     
     // Check if we got a valid image (permission check)
     if (!image || image.isEmpty()) {
+      // Emit error toast
+      if (mainWindow) {
+        console.log('Emitting error toast: Permission denied');
+        mainWindow.webContents.send('screenshot-toast', { 
+          type: 'error',
+          message: 'Screenshot failed: Permission denied'
+        });
+      }
       return { 
         success: false, 
         error: 'Screenshot permission denied by Windows',
@@ -379,6 +457,15 @@ ipcMain.handle('take-screenshot', async (event) => {
     const stats = fs.statSync(filepath);
     const fileSize = stats.size;
     
+    // Emit success toast
+    if (mainWindow) {
+      console.log('Emitting success toast');
+      mainWindow.webContents.send('screenshot-toast', { 
+        type: 'success',
+        message: 'Screenshot saved successfully!'
+      });
+    }
+    
     return { 
       success: true, 
       filepath: filepath,
@@ -392,6 +479,15 @@ ipcMain.handle('take-screenshot', async (event) => {
                              error.message.includes('access') ||
                              error.message.includes('denied') ||
                              error.message.includes('blocked');
+    
+    // Emit error toast
+    if (mainWindow) {
+      console.log('Emitting error toast:', error.message);
+      mainWindow.webContents.send('screenshot-toast', { 
+        type: 'error',
+        message: `Screenshot failed: ${error.message}`
+      });
+    }
     
     return { 
       success: false, 
@@ -413,7 +509,24 @@ app.whenReady().then(() => {
   createHttpServer();
 });
 
-app.on('window-all-closed', () => {
+app.on('before-quit', async (event) => {
+  event.preventDefault(); // Prevent immediate quit
+  
+  if (httpServer) {
+    httpServer.close();
+  }
+  
+  // Perform automatic clock-out
+  await performAutomaticClockOut();
+  
+  // Allow the app to quit after clock-out
+  app.exit();
+});
+
+app.on('window-all-closed', async () => {
+  // Perform automatic clock-out when all windows are closed
+  await performAutomaticClockOut();
+  
   if (process.platform !== 'darwin') {
     app.quit();
   }
@@ -422,11 +535,5 @@ app.on('window-all-closed', () => {
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
-  }
-});
-
-app.on('before-quit', () => {
-  if (httpServer) {
-    httpServer.close();
   }
 }); 

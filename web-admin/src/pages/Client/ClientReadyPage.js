@@ -53,7 +53,7 @@ const ClientReadyPage = () => {
             color: colors.gray[900],
             letterSpacing: '-0.025em',
           }}>
-            Mercor Time Tracker
+            Inciteful Time Tracker
           </h1>
         </div>
         <button

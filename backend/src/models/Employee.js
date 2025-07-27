@@ -9,7 +9,9 @@ const EmployeeSchema = new mongoose.Schema({
   taskIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Task' }],
   isActive: { type: Boolean, default: true },
   isAdmin: { type: Boolean, default: false },
-  emailVerified: { type: Boolean, default: false }
+  emailVerified: { type: Boolean, default: false },
+  ipAddress: { type: String, default: null }, // Store employee's current IP
+  lastLoginAt: { type: Date, default: null } // Track when IP was last updated
 });
 
 module.exports = mongoose.model('Employee', EmployeeSchema);

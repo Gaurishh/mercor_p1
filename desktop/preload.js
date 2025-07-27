@@ -12,7 +12,17 @@ try {
     contextBridge.exposeInMainWorld('electronAPI', {
       openExternal: (url) => ipcRenderer.invoke('open-external', url),
       takeScreenshot: () => ipcRenderer.invoke('take-screenshot'),
-      setEmployeeId: (employeeId) => ipcRenderer.invoke('set-employee-id', employeeId)
+      setEmployeeId: (employeeId) => ipcRenderer.invoke('set-employee-id', employeeId),
+      onScreenshotToast: (callback) => {
+        console.log('Preload: Setting up screenshot toast listener');
+        ipcRenderer.on('screenshot-toast', callback);
+        console.log('Preload: Screenshot toast listener set up');
+      },
+      removeScreenshotToastListener: (callback) => {
+        console.log('Preload: Removing screenshot toast listener');
+        ipcRenderer.removeListener('screenshot-toast', callback);
+        console.log('Preload: Screenshot toast listener removed');
+      }
     });
     
     // Also expose a simple test function

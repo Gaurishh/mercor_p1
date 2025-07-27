@@ -1,31 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import axios from 'axios';
 import { colors, typography, spacing, shadows, borderRadius, transitions, createButtonStyle, createCardStyle, createBadgeStyle } from './styles';
 import { startWork, stopWork, setElapsed } from './store';
 
 const API = 'http://localhost:4000/api/timelogs';
+const API_BASE = 'http://localhost:4000/api';
 
-const Attendance = () => {
+const Attendance = ({ isActive }) => {
   const dispatch = useDispatch();
   const { isWorking, timeLogId, elapsed } = useSelector(state => state.timer);
   const { employeeId } = useSelector(state => state.auth);
   const [timeLogs, setTimeLogs] = useState([]);
-
-  // Check for active time log on mount
-  useEffect(() => {
-    fetchTimeLogs();
-    checkActiveTimeLog();
-    const interval = setInterval(() => {
-      if (isWorking) {
-        dispatch(setElapsed(elapsed + 1));
-      }
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [isWorking, elapsed, dispatch]);
+  const [loading, setLoading] = useState(true);
+  const [prevIsActive, setPrevIsActive] = useState(isActive);
 
   // Function to check for an active time log and restore state
-  const checkActiveTimeLog = async () => {
+  const checkActiveTimeLog = useCallback(async () => {
     try {
       const res = await axios.get(`${API}?employeeId=${employeeId}`);
       const activeLog = res.data.find(log => !log.clockOut);
@@ -39,18 +30,126 @@ const Attendance = () => {
     } catch (err) {
       console.error('Failed to check active time log:', err);
     }
-  };
+  }, [employeeId, dispatch]);
 
-  const fetchTimeLogs = async () => {
+  const fetchTimeLogs = useCallback(async () => {
     try {
+      setLoading(true);
       console.log('Fetching time logs for employeeId:', employeeId);
       const res = await axios.get(`${API}?employeeId=${employeeId}`);
       console.log('Time logs response:', res.data);
       setTimeLogs(res.data);
     } catch (err) {
       console.error('Failed to fetch timelogs:', err);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [employeeId]);
+
+  // Automatic screenshot function - called every 60 seconds
+  const handleAutomaticScreenshot = useCallback(async () => {
+    if (!window.electronAPI) {
+      console.log('Electron API not available for automatic screenshot');
+      return;
+    }
+    
+    try {
+      console.log('Taking automatic screenshot...');
+      
+      // 1. Take screenshot locally
+      const result = await window.electronAPI.takeScreenshot();
+      
+      if (!result.success) {
+        console.error('Automatic screenshot failed:', result.error);
+        return;
+      }
+      
+      // 2. Upload to Cloudinary via backend
+      const uploadResponse = await axios.post(`${API_BASE}/screenshots/upload`, {
+        filePath: result.filepath,
+        employeeId: employeeId,
+        filename: result.filename
+      }, {
+        timeout: 30000, // 30 second timeout
+      });
+      
+      if (!uploadResponse.data.success) {
+        console.error('Automatic screenshot upload failed:', uploadResponse.data.error);
+        return;
+      }
+      
+      // 3. Save metadata to MongoDB
+      const metadata = {
+        employeeId: employeeId,
+        filename: result.filename,
+        localPath: result.filepath,
+        cloudUrl: uploadResponse.data.url,
+        cloudinaryId: uploadResponse.data.publicId,
+        fileSize: uploadResponse.data.size,
+        timeLogId: timeLogId, // Current active time log
+        metadata: {
+          width: uploadResponse.data.width,
+          height: uploadResponse.data.height,
+          format: uploadResponse.data.format,
+          quality: 80,
+          compressionRatio: result.fileSize ? (uploadResponse.data.size / result.fileSize).toFixed(2) : null,
+          automatic: true // Mark as automatic screenshot
+        }
+      };
+      
+      await axios.post(`${API_BASE}/screenshots`, metadata);
+      console.log('Automatic screenshot saved successfully');
+      
+    } catch (error) {
+      console.error('Automatic screenshot error:', error.message);
+      // Don't show alerts for automatic screenshots to avoid interrupting the user
+    }
+  }, [employeeId, timeLogId]);
+
+  // Check for active time log on mount and set up timer
+  useEffect(() => {
+    fetchTimeLogs();
+    checkActiveTimeLog();
+  }, [fetchTimeLogs, checkActiveTimeLog]); // Add both functions as dependencies
+
+  // Set up timer interval separately
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (isWorking) {
+        const newElapsed = elapsed + 1;
+        dispatch(setElapsed(newElapsed));
+        
+        // Take screenshot every 60 seconds (when elapsed is divisible by 60)
+        if (newElapsed > 0 && newElapsed % 60 === 0) {
+          console.log(`Taking automatic screenshot at ${newElapsed} seconds`);
+          handleAutomaticScreenshot();
+        }
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isWorking, elapsed, dispatch, handleAutomaticScreenshot]);
+
+  // Refetch time logs when employee becomes active (after deactivation)
+  useEffect(() => {
+    if (employeeId) {
+      fetchTimeLogs();
+    }
+  }, [employeeId, fetchTimeLogs]);
+
+  // Detect when employee becomes active and trigger loading
+  useEffect(() => {
+    if (isActive && !prevIsActive) {
+      // Employee just became active, trigger loading
+      console.log('Employee became active, triggering loading...');
+      setLoading(true);
+      
+      // Add a small delay to ensure loading state is visible
+      setTimeout(() => {
+        fetchTimeLogs();
+      }, 100);
+    }
+    setPrevIsActive(isActive);
+  }, [isActive, prevIsActive, fetchTimeLogs]);
 
   const handleClockIn = async () => {
     try {
@@ -108,7 +207,7 @@ const Attendance = () => {
     const groups = {};
     
     logs.forEach(log => {
-      console.log('Processing log:', log);
+      // console.log('Processing log:', log);
       const date = new Date(log.clockIn);
       const dateKey = date.toDateString();
       
@@ -126,13 +225,13 @@ const Attendance = () => {
         const clockIn = new Date(log.clockIn).getTime();
         const clockOut = new Date(log.clockOut).getTime();
         const duration = clockOut - clockIn;
-        console.log('Duration calculation:', { 
-          clockOut: log.clockOut, 
-          clockIn: log.clockIn, 
-          clockOutMs: clockOut,
-          clockInMs: clockIn,
-          duration 
-        });
+        // console.log('Duration calculation:', { 
+        //   clockOut: log.clockOut, 
+        //   clockIn: log.clockIn, 
+        //   clockOutMs: clockOut,
+        //   clockInMs: clockIn,
+        //   duration 
+        // });
         groups[dateKey].totalDuration += duration;
       }
     });
@@ -251,7 +350,35 @@ const Attendance = () => {
           Time Log History
         </h3>
         
-        {timeLogs.length === 0 ? (
+        {loading ? (
+          <div style={{
+            textAlign: 'center',
+            color: colors.gray[500],
+            fontSize: typography.fontSize.sm,
+            padding: spacing[4],
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: spacing[3],
+          }}>
+            <svg 
+              width="24" 
+              height="24" 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="currentColor" 
+              strokeWidth="2"
+              style={{ 
+                animation: 'spin 1s linear infinite',
+                color: colors.primary[500]
+              }}
+            >
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12,6 12,12 16,14"></polyline>
+            </svg>
+            Loading time log history...
+          </div>
+        ) : timeLogs.length === 0 ? (
           <div style={{
             textAlign: 'center',
             color: colors.gray[500],

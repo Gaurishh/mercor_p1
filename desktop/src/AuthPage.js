@@ -124,7 +124,7 @@ const AuthPage = () => {
             marginBottom: spacing[4],
             boxShadow: shadows.lg,
           }}>
-            <span style={{ color: 'white', fontSize: '20px', fontWeight: typography.fontWeight.bold }}>M</span>
+            <span style={{ color: 'white', fontSize: '20px', fontWeight: typography.fontWeight.bold }}>I</span>
           </div>
           <h1 style={{
             fontSize: typography.fontSize['2xl'],
@@ -134,7 +134,7 @@ const AuthPage = () => {
             marginBottom: spacing[2],
             letterSpacing: '-0.025em',
           }}>
-            Welcome to Mercor
+            Welcome to Inciteful
           </h1>
           <p style={{
             fontSize: typography.fontSize.sm,

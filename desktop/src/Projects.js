@@ -227,11 +227,18 @@ const Tasks = () => {
 
   return (
     <div style={{
-      padding: `0 ${spacing[6]}`,
+      display: 'flex',
+      flexDirection: 'column',
+      padding: spacing[6],
       maxWidth: '100%',
-      overflow: 'hidden',
       boxSizing: 'border-box',
     }}>
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: spacing[6],
+        paddingBottom: spacing[8], // Add bottom padding to match Attendance component
+      }}>
 
 
       {/* Clock-in Warning */}
@@ -446,6 +453,7 @@ const Tasks = () => {
           </div>
         )}
       </div>
+    </div>
     </div>
   );
 };

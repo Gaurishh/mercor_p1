@@ -144,7 +144,7 @@ const Sidebar = ({ onNavigate, activeView, lightMode = false }) => {
           Desktop App
         </h4>
         <a 
-          href="/desktop/releases/mercor-timetracker-setup.exe" 
+          href="/desktop/releases/inciteful-timetracker-setup.exe" 
           download 
           style={{
             ...createButtonStyle('success', 'md'),

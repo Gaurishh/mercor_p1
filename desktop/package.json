@@ -1,16 +1,84 @@
 {
-  "name": "desktop",
+  "name": "inciteful-desktop",
   "version": "1.0.0",
   "main": "main.js",
+  "homepage": "https://github.com/Gaurishh/inciteful-desktop",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Gaurishh/inciteful-desktop.git"
+  },
   "scripts": {
     "start": "concurrently \"npm run start:react\" \"npm run start:electron\"",
     "start:react": "cross-env PORT=3001 BROWSER=none react-scripts start",
-    "start:electron": "electron ."
+    "start:electron": "electron .",
+    "build": "npm run build:react && electron-builder",
+    "build:react": "react-scripts build",
+    "build:win": "npm run build:react && electron-builder --win",
+    "build:mac": "npm run build:react && electron-builder --mac",
+    "build:linux": "npm run build:react && electron-builder --linux",
+    "build:all": "npm run build:react && electron-builder -mwl",
+    "dist": "npm run build:react && electron-builder --publish=always"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
+  "build": {
+    "appId": "com.inciteful.desktop",
+    "productName": "Inciteful Desktop",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "build/**/*",
+      "main.js",
+      "preload.js",
+      "package.json",
+      "node_modules/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "assets",
+        "to": "assets"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        }
+      ],
+      "icon": "assets/icon.icns"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "Gaurishh",
+      "repo": "inciteful-desktop"
+    }
+  },
   "dependencies": {
     "@reduxjs/toolkit": "^2.0.1",
     "axios": "latest",
@@ -28,17 +96,5 @@
     "cross-env": "^10.0.0",
     "electron": "latest",
     "electron-builder": "latest"
-  },
-  "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
   }
 }
