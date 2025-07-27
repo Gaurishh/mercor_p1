@@ -173,15 +173,12 @@ const Attendance = () => {
   return (
         <div style={{
           display: 'flex',
-      flexDirection: 'column',
-          justifyContent: 'center',
-            alignItems: 'center',
-      height: '100%',
-      padding: spacing[6],
-      maxWidth: '100%',
-      overflow: 'hidden',
-      boxSizing: 'border-box',
-    }}>
+          flexDirection: 'column',
+          alignItems: 'center',
+          padding: spacing[6],
+          maxWidth: '100%',
+          boxSizing: 'border-box',
+        }}>
 
 
         {/* Timer Display */}
@@ -213,7 +210,7 @@ const Attendance = () => {
           }}
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: spacing[3] }}>
-              <polyline points="20,6 9,17 4,12"/>
+            <polygon points="5,3 19,12 5,21"/>
           </svg>
           Clock In
         </button>
@@ -231,7 +228,7 @@ const Attendance = () => {
           }}
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: spacing[3] }}>
-            <path d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            <rect x="6" y="6" width="12" height="12"/>
           </svg>
           Clock Out
         </button>
@@ -240,6 +237,7 @@ const Attendance = () => {
       {/* Time Log History */}
       <div style={{
         marginTop: spacing[8],
+        marginBottom: spacing[8],
         width: '100%',
         maxWidth: '400px',
       }}>

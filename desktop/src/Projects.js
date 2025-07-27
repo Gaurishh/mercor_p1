@@ -27,14 +27,9 @@ const Tasks = () => {
     try {
       setLoading(true);
       
-      // Fetch all tasks
-      const tasksRes = await axios.get(`${API_BASE}/tasks`);
-      const allTasks = tasksRes.data;
-      
-      // Filter tasks for this employee
-      const employeeTasks = allTasks.filter(task => 
-        task.employeeIds && task.employeeIds.includes(empId)
-      );
+      // Use the new optimized endpoint that fetches tasks with project info
+      const tasksRes = await axios.get(`${API_BASE}/employees/${empId}/tasks`);
+      const employeeTasks = tasksRes.data;
       
       setTasks(employeeTasks);
       
@@ -53,17 +48,18 @@ const Tasks = () => {
         dispatch(setTaskStatus({ taskId, status }));
       });
       
-      // Fetch projects for these tasks
-      const projectIds = [...new Set(employeeTasks.map(task => task.projectId))];
-      const projectsRes = await axios.get(`${API_BASE}/projects`);
-      const allProjects = projectsRes.data;
+      // Extract unique projects from the tasks (project info is already populated)
+      const uniqueProjects = [];
+      const projectIds = new Set();
       
-      // Filter projects that have tasks for this employee
-      const relevantProjects = allProjects.filter(project => 
-        projectIds.includes(project._id)
-      );
+      employeeTasks.forEach(task => {
+        if (task.projectId && !projectIds.has(task.projectId._id)) {
+          projectIds.add(task.projectId._id);
+          uniqueProjects.push(task.projectId);
+        }
+      });
       
-      setProjects(relevantProjects);
+      setProjects(uniqueProjects);
       
     } catch (err) {
       console.error('Failed to fetch employee tasks:', err);
@@ -188,7 +184,7 @@ const Tasks = () => {
   // Group tasks by project
   const tasksByProject = projects.map(project => ({
     ...project,
-    tasks: tasks.filter(task => task.projectId === project._id)
+    tasks: tasks.filter(task => task.projectId && task.projectId._id === project._id)
   }));
 
   if (loading) {
@@ -354,14 +350,14 @@ const Tasks = () => {
                           type="checkbox"
                           checked={isCompleted}
                           onChange={() => handleTaskComplete(task._id, isCompleted)}
-                          disabled={!isWorking || !canComplete || (isCompleted && !canUncomplete)}
+                          disabled={!isWorking || taskStatus === 'Inactive' || !canComplete || (isCompleted && !canUncomplete)}
                           style={{
                             width: '18px',
                             height: '18px',
                             marginRight: spacing[3],
                             accentColor: colors.primary[600],
-                            opacity: (!isWorking || isCompleted) ? 0.5 : 1,
-                            cursor: (!isWorking || !canComplete || (isCompleted && !canUncomplete)) ? 'not-allowed' : 'pointer',
+                            opacity: (!isWorking || taskStatus === 'Inactive' || isCompleted) ? 0.5 : 1,
+                            cursor: (!isWorking || taskStatus === 'Inactive' || !canComplete || (isCompleted && !canUncomplete)) ? 'not-allowed' : 'pointer',
                           }}
                         />
                         <div style={{

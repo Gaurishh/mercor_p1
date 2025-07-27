@@ -54,7 +54,7 @@ const Activate = () => {
     e.preventDefault();
     setLoading(true);
     setMessage('');
-
+    
     if (formData.password !== formData.confirmPassword) {
       setMessage('Passwords do not match');
       setLoading(false);
@@ -285,7 +285,7 @@ const Activate = () => {
         border: `1px solid ${colors.gray[200]}`,
       }}>
         <div style={{ textAlign: 'center', marginBottom: spacing[8] }}>
-          <div style={{
+          <div style={{ 
             width: 64,
             height: 64,
             background: `linear-gradient(135deg, ${colors.primary[500]} 0%, ${colors.primary[600]} 100%)`,
@@ -332,16 +332,16 @@ const Activate = () => {
             }}>
               Password
             </label>
-            <input
-              type="password"
+              <input
+                type="password"
               name="password"
               value={formData.password}
               onChange={handleInputChange}
-              required
+                required
               style={createInputStyle()}
               placeholder="Enter your password"
-            />
-          </div>
+              />
+            </div>
 
           <div style={{ marginBottom: spacing[6] }}>
             <label style={{
@@ -353,16 +353,16 @@ const Activate = () => {
             }}>
               Confirm Password
             </label>
-            <input
-              type="password"
+              <input
+                type="password"
               name="confirmPassword"
               value={formData.confirmPassword}
               onChange={handleInputChange}
-              required
+                required
               style={createInputStyle()}
               placeholder="Confirm your password"
-            />
-          </div>
+              />
+            </div>
 
           <div style={{ marginBottom: spacing[8] }}>
             <label style={{
@@ -392,8 +392,8 @@ const Activate = () => {
             </select>
           </div>
 
-          {message && (
-            <div style={{
+            {message && (
+              <div style={{ 
               marginBottom: spacing[6],
               padding: spacing[4],
               background: colors.error[50],
@@ -401,10 +401,10 @@ const Activate = () => {
               borderRadius: borderRadius.lg,
               border: `1px solid ${colors.error[200]}`,
               fontSize: typography.fontSize.sm,
-            }}>
-              {message}
-            </div>
-          )}
+              }}>
+                {message}
+              </div>
+            )}
 
           <button
             type="submit"
@@ -417,9 +417,9 @@ const Activate = () => {
             }}
           >
             {loading ? 'Activating...' : 'Activate Account'}
-          </button>
-        </form>
-      </div>
+            </button>
+          </form>
+        </div>
     </div>
   );
 };

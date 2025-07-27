@@ -305,3 +305,14 @@ export const createInputStyle = () => ({
     color: colors.gray[500],
   },
 });
+
+// Global CSS for hidden scrollbar
+export const globalStyles = `
+  .hidden-scrollbar {
+    -ms-overflow-style: none;  /* Internet Explorer 10+ */
+    scrollbar-width: none;  /* Firefox */
+  }
+  .hidden-scrollbar::-webkit-scrollbar { 
+    display: none;  /* Safari and Chrome */
+  }
+`;

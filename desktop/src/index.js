@@ -2,13 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { createRoot } from 'react-dom/client';
 import { Provider } from 'react-redux';
-import { colors, typography, spacing, shadows, borderRadius, transitions, createButtonStyle, createCardStyle } from './styles';
+import axios from 'axios';
+import { colors, typography, spacing, shadows, borderRadius, transitions, createButtonStyle, createCardStyle, globalStyles } from './styles';
 import Attendance from './Attendance';
 import Tasks from './Projects';
 import AuthPage from './AuthPage';
 import AdminRedirect from './AdminRedirect';
 import { store } from './store';
 import { setAuth, clearAuth } from './store';
+
+// API Configuration
+const API_BASE = 'http://localhost:4000/api';
 
 // Error Boundary Component
 class ErrorBoundary extends React.Component {
@@ -64,7 +68,6 @@ class ErrorBoundary extends React.Component {
 // Test Component to verify Redux is working
 const TestComponent = () => {
   const auth = useSelector(state => state.auth);
-  console.log('TestComponent auth state:', auth);
   
   return (
     <div style={{ padding: spacing[4], background: colors.gray[100] }}>
@@ -148,20 +151,15 @@ const Navigation = ({ activeTab, onTabChange, onSignOut, showSideMenu, setShowSi
 const App = () => {
   const dispatch = useDispatch();
   const { employeeId, isAdmin } = useSelector(state => state.auth);
+  const { isWorking, timeLogId } = useSelector(state => state.timer);
   const [activeTab, setActiveTab] = useState('attendance');
   const [showSideMenu, setShowSideMenu] = useState(false);
   const [isTakingScreenshot, setIsTakingScreenshot] = useState(false);
 
-  console.log('App component rendering:', { employeeId, isAdmin });
-
   // Check for existing authentication on app start
   useEffect(() => {
-    console.log('App useEffect running');
-    console.log('window.electronAPI available:', !!window.electronAPI);
     const storedIsAdmin = localStorage.getItem('isAdmin');
     const storedEmployeeId = localStorage.getItem('employeeId');
-    
-    console.log('Stored values:', { storedIsAdmin, storedEmployeeId });
     
     if (storedIsAdmin !== null && storedEmployeeId) {
       dispatch(setAuth({ 
@@ -170,6 +168,17 @@ const App = () => {
       }));
     }
   }, [dispatch]);
+
+  // Inject global styles for hidden scrollbar
+  useEffect(() => {
+    const styleElement = document.createElement('style');
+    styleElement.textContent = globalStyles;
+    document.head.appendChild(styleElement);
+    
+    return () => {
+      document.head.removeChild(styleElement);
+    };
+  }, []);
 
   // Handle click outside side menu
   useEffect(() => {
@@ -191,6 +200,26 @@ const App = () => {
     };
   }, [showSideMenu]);
 
+  useEffect(() => {
+    if (employeeId) {
+      // Set employee ID in Electron main process for remote screenshot requests
+      if (window.electronAPI && window.electronAPI.setEmployeeId) {
+        window.electronAPI.setEmployeeId(employeeId);
+      }
+      
+      // Also set via HTTP endpoint as backup
+      fetch(`http://localhost:3003/set-employee`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ employeeId })
+      }).catch(err => {
+        console.log('HTTP set-employee failed (normal if server not ready):', err);
+      });
+    }
+  }, [employeeId]);
+
   const handleSignOut = () => {
     dispatch(clearAuth());
   };
@@ -198,49 +227,112 @@ const App = () => {
   const handleTakeScreenshot = async () => {
     if (isTakingScreenshot) return;
     
-    console.log('handleTakeScreenshot called');
-    console.log('window.electronAPI:', window.electronAPI);
-    
     if (!window.electronAPI) {
-      console.error('electronAPI is not available');
-      alert('Screenshot feature is not available. Please restart the app.');
+      // Try to use direct IPC if available (fallback for testing)
+      if (window.require) {
+        try {
+          const { ipcRenderer } = window.require('electron');
+          
+          const result = await ipcRenderer.invoke('take-screenshot');
+          if (result.success) {
+            alert(`Screenshot saved locally: ${result.filename}\n\nNote: Cloud upload not available in fallback mode.`);
+          } else {
+            alert(`Screenshot failed: ${result.error}`);
+          }
+        } catch (fallbackError) {
+          alert('Screenshot feature is not available. Please restart the app.');
+        }
+      } else {
+        alert('Screenshot feature is not available. Please restart the app.');
+      }
       return;
     }
     
     setIsTakingScreenshot(true);
     try {
+      // 1. Take screenshot locally
       const result = await window.electronAPI.takeScreenshot();
-      if (result.success) {
-        // Show success feedback (you could add a toast notification here)
-        console.log(`Screenshot saved: ${result.filename}`);
-        alert(`Screenshot saved successfully!\nFile: ${result.filename}`);
-      } else {
-        console.error('Screenshot failed:', result.error);
-        alert(`Screenshot failed: ${result.error}`);
+      
+      if (!result.success) {
+        // Check if it's a permission error
+        if (result.permissionDenied) {
+          // Store permission denied record in database
+          try {
+            await axios.post(`${API_BASE}/screenshots/permission-denied`, {
+              employeeId: employeeId,
+              timeLogId: isWorking ? timeLogId : null
+            });
+          } catch (dbError) {
+            // Silent fail for permission denied records
+          }
+          
+          alert(`Screenshot permission denied by Windows.\n\nPlease enable screen recording permissions for this app in Windows Settings.\n\nError: ${result.error}`);
+          return;
+        }
+        
+        throw new Error(result.error);
       }
+      
+      // 2. Upload to Cloudinary via backend
+      const uploadResponse = await axios.post(`${API_BASE}/screenshots/upload`, {
+        filePath: result.filepath,
+        employeeId: employeeId,
+        filename: result.filename
+      }, {
+        timeout: 30000, // 30 second timeout
+      });
+      
+      if (!uploadResponse.data.success) {
+        throw new Error(uploadResponse.data.error);
+      }
+      
+      // 3. Save metadata to MongoDB
+      const metadata = {
+        employeeId: employeeId,
+        filename: result.filename,
+        localPath: result.filepath,
+        cloudUrl: uploadResponse.data.url,
+        cloudinaryId: uploadResponse.data.publicId,
+        fileSize: uploadResponse.data.size,
+        timeLogId: isWorking ? timeLogId : null,
+        metadata: {
+          width: uploadResponse.data.width,
+          height: uploadResponse.data.height,
+          format: uploadResponse.data.format,
+          quality: 80,
+          compressionRatio: result.fileSize ? (uploadResponse.data.size / result.fileSize).toFixed(2) : null
+        }
+      };
+      
+      await axios.post(`${API_BASE}/screenshots`, metadata);
+      
+      // 4. Show success message with details
+      const originalSize = result.fileSize ? (result.fileSize / 1024).toFixed(1) : 'Unknown';
+      const compressedSize = (uploadResponse.data.size / 1024).toFixed(1);
+      const compressionRatio = result.fileSize ? ((result.fileSize - uploadResponse.data.size) / result.fileSize * 100).toFixed(1) : 0;
+      
+      alert(`Screenshot saved successfully!\n\nLocal: ${result.filename}\nCloud: Optimized & uploaded\nSize: ${originalSize}KB → ${compressedSize}KB (${compressionRatio}% smaller)`);
+      
     } catch (error) {
-      console.error('Error taking screenshot:', error);
-      alert('Failed to take screenshot. Please try again.');
+      if (error.message.includes('upload')) {
+        alert(`Screenshot saved locally but cloud upload failed.\nError: ${error.message}\n\nYou can find the file in the screenshots folder.`);
+      } else {
+        alert(`Screenshot failed: ${error.message}`);
+      }
     } finally {
       setIsTakingScreenshot(false);
     }
   };
 
-  console.log('Rendering decision:', { employeeId, isAdmin });
-
   // Show authentication if not authenticated
   if (!employeeId) {
-    console.log('Rendering AuthPage');
     return <AuthPage key="auth" />;
   }
 
   // Show admin redirect if user is admin
   if (isAdmin) {
-    console.log('Rendering AdminRedirect');
     return <AdminRedirect key="admin" />;
   }
-
-  console.log('Rendering main app');
 
   // Show main app for regular users
   return (
@@ -249,23 +341,23 @@ const App = () => {
       flexDirection: 'column',
       justifyContent: 'center',
       alignItems: 'center',
-      minHeight: '100vh',
+      height: '100vh',
       maxWidth: '100vw',
       width: '100%',
       background: `linear-gradient(135deg, ${colors.primary[50]} 0%, ${colors.gray[50]} 100%)`,
       fontFamily: typography.fontFamily.primary,
-      // paddingTop: '16px', // Minimal padding for default window frame
       overflow: 'hidden',
     }}>
       <div style={{
         ...createCardStyle(),
         maxWidth: '800px',
-        minHeight: '840px',
-        maxHeight: '980px',
+        height: '100vh',
         width: '100%',
         overflow: 'hidden',
         boxSizing: 'border-box',
         position: 'relative',
+        display: 'flex',
+        flexDirection: 'column',
       }}>
         {/* Fixed Navigation */}
         <div style={{
@@ -393,7 +485,7 @@ const App = () => {
                       <circle cx="12" cy="13" r="4"></circle>
                     </svg>
                   )}
-                  {isTakingScreenshot ? 'Taking Screenshot...' : 'Take Screenshot'}
+                  {isTakingScreenshot ? 'Capturing & Uploading...' : 'Take Screenshot'}
                 </button>
                 
                 <button
@@ -419,11 +511,14 @@ const App = () => {
         )}
         
         {/* Content */}
-        <div style={{ 
-          flex: 1, 
-          overflow: 'hidden',
-          paddingTop: '72px', // Account for fixed navigation height
-        }}>
+        <div 
+          className="hidden-scrollbar"
+          style={{ 
+            flex: 1, 
+            overflow: 'auto',
+            paddingTop: '72px', // Account for fixed navigation height
+          }}
+        >
           {activeTab === 'attendance' && <Attendance />}
           {activeTab === 'projects' && <Tasks />}
         </div>

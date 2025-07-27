@@ -7,6 +7,7 @@ import AdminDashboard from './pages/Admin/AdminDashboard';
 import ForgotPasswordPage from './pages/Auth/ForgotPasswordPage';
 import ResetPasswordPage from './pages/Auth/ResetPasswordPage';
 import Activate from './pages/Activate';
+import EmployeeDetailPage from './pages/Admin/EmployeeDetailPage';
 
 function RequireAuth({ children }) {
   const location = useLocation();
@@ -56,6 +57,11 @@ function App() {
         <Route path="/admin/dashboard" element={
           <RequireAdmin>
             <AdminDashboard />
+          </RequireAdmin>
+        } />
+        <Route path="/admin/dashboard/employee/:employeeId" element={
+          <RequireAdmin>
+            <EmployeeDetailPage />
           </RequireAdmin>
         } />
         <Route path="/client-ready" element={

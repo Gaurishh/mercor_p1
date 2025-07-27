@@ -1,17 +1,28 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { colors, typography, spacing, shadows, borderRadius, transitions, createButtonStyle, createInputStyle, createBadgeStyle } from '../../styles';
+import { useNavigate } from 'react-router-dom';
 
 const API = 'http://localhost:4000/api/employees';
 
 const Employees = () => {
+  const navigate = useNavigate();
   const [employees, setEmployees] = useState([]);
   const [selected, setSelected] = useState(null);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteForm, setInviteForm] = useState({ fullName: '', email: '' });
+  const [workingStatus, setWorkingStatus] = useState({});
 
   useEffect(() => {
     fetchEmployees();
+    fetchWorkingStatus();
+    
+    // Refresh working status every 2 seconds
+    const interval = setInterval(() => {
+      fetchWorkingStatus();
+    }, 2000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   const fetchEmployees = async () => {
@@ -31,6 +42,15 @@ const Employees = () => {
     setEmployees(nonAdminEmployees);
   };
 
+  const fetchWorkingStatus = async () => {
+    try {
+      const res = await axios.get(`${API}/working-status`);
+      setWorkingStatus(res.data);
+    } catch (err) {
+      console.error('Failed to fetch working status:', err);
+    }
+  };
+
   const handleSelect = (emp) => {
     setSelected(emp);
   };
@@ -41,6 +61,15 @@ const Employees = () => {
     if (selected && selected._id === emp._id) {
       setSelected({ ...emp, isActive: !emp.isActive });
     }
+  };
+
+  // Refresh working status (can be called periodically or on specific events)
+  const refreshWorkingStatus = () => {
+    fetchWorkingStatus();
+  };
+
+  const handleEmployeeClick = (employeeId) => {
+    navigate(`/admin/dashboard/employee/${employeeId}`);
   };
 
   const handleInviteSubmit = async (e) => {
@@ -145,7 +174,7 @@ const Employees = () => {
                 transform: 'translateY(-2px)',
               },
             }}
-            onClick={() => handleSelect(emp)}
+            onClick={() => handleEmployeeClick(emp._id)}
             onMouseEnter={(e) => {
               e.target.style.boxShadow = shadows.md;
               e.target.style.transform = 'translateY(-2px)';
@@ -176,6 +205,18 @@ const Employees = () => {
                 {emp.firstName.charAt(0)}{emp.lastName.charAt(0)}
               </div>
               <div style={{ display: 'flex', gap: spacing[2] }}>
+                {workingStatus[emp._id] && (
+                  <span style={{
+                    backgroundColor: colors.error[500],
+                    color: 'white',
+                    fontSize: typography.fontSize.xs,
+                    padding: `${spacing[1]} ${spacing[2]}`,
+                    borderRadius: borderRadius.full,
+                    fontWeight: typography.fontWeight.medium,
+                  }}>
+                    Working
+                  </span>
+                )}
                 <span style={{
                   ...createBadgeStyle(emp.isActive ? 'success' : 'error'),
                   fontSize: typography.fontSize.xs,
@@ -271,7 +312,19 @@ const Employees = () => {
                 {selected.email}
               </p>
             </div>
-            <div style={{ marginLeft: 'auto' }}>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: spacing[2] }}>
+              {workingStatus[selected._id] && (
+                <span style={{
+                  backgroundColor: colors.error[500],
+                  color: 'white',
+                  fontSize: typography.fontSize.sm,
+                  padding: `${spacing[2]} ${spacing[3]}`,
+                  borderRadius: borderRadius.full,
+                  fontWeight: typography.fontWeight.medium,
+                }}>
+                  Working
+                </span>
+              )}
               <span style={{
                 ...createBadgeStyle(selected.isActive ? 'success' : 'error'),
                 fontSize: typography.fontSize.sm,
@@ -306,6 +359,17 @@ const Employees = () => {
                 margin: 0,
               }}>
                 {selected.isActive ? 'Active Member' : 'Inactive Member'}
+                {workingStatus[selected._id] && (
+                  <span style={{
+                    display: 'block',
+                    fontSize: typography.fontSize.sm,
+                    color: colors.error[600],
+                    fontWeight: typography.fontWeight.medium,
+                    marginTop: spacing[1],
+                  }}>
+                    Currently Working
+                  </span>
+                )}
               </p>
             </div>
             <div>

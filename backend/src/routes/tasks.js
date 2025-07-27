@@ -1,6 +1,7 @@
 const express = require('express');
 const Task = require('../models/Task');
 const Project = require('../models/Project');
+const Employee = require('../models/Employee');
 
 const router = express.Router();
 
@@ -55,9 +56,34 @@ router.put('/:_id', async (req, res) => {
       }
       update.projectId = project._id;
     }
-    if (employeeIds !== undefined) update.employeeIds = employeeIds;
+    let oldEmployeeIds = [];
+    if (employeeIds !== undefined) {
+      // Get the current employeeIds for this task
+      const currentTask = await Task.findById(req.params._id);
+      if (currentTask) {
+        oldEmployeeIds = currentTask.employeeIds.map(id => id.toString());
+      }
+      update.employeeIds = employeeIds;
+    }
     const task = await Task.findByIdAndUpdate(req.params._id, update, { new: true });
     if (!task) return res.status(404).json({ error: 'Task not found' });
+    // Synchronize employee.taskIds
+    if (employeeIds !== undefined) {
+      const newEmployeeIds = employeeIds.map(id => id.toString());
+      const taskId = task._id.toString();
+      // Employees to add taskId to
+      const toAdd = newEmployeeIds.filter(id => !oldEmployeeIds.includes(id));
+      // Employees to remove taskId from
+      const toRemove = oldEmployeeIds.filter(id => !newEmployeeIds.includes(id));
+      // Add taskId to new employees
+      await Promise.all(toAdd.map(empId =>
+        Employee.findByIdAndUpdate(empId, { $addToSet: { taskIds: taskId } })
+      ));
+      // Remove taskId from removed employees
+      await Promise.all(toRemove.map(empId =>
+        Employee.findByIdAndUpdate(empId, { $pull: { taskIds: taskId } })
+      ));
+    }
     res.json(task);
   } catch (err) {
     res.status(500).json({ error: 'Server error' });

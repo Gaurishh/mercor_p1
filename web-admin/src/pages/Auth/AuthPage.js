@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { colors, typography, spacing, shadows, borderRadius, transitions, createButtonStyle, createInputStyle } from '../../styles';
@@ -14,6 +14,20 @@ const AuthPage = () => {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
+  // Check localStorage on component mount
+  useEffect(() => {
+    const isAdmin = localStorage.getItem('isAdmin');
+    const employeeId = localStorage.getItem('employeeId');
+    
+    if (isAdmin && employeeId) {
+      if (isAdmin === 'true') {
+        navigate('/admin/dashboard');
+      } else {
+        navigate('/client-ready');
+      }
+    }
+  }, [navigate]);
 
   const handleSignInChange = (e) => {
     setSignInForm({ ...signInForm, [e.target.name]: e.target.value });

@@ -87,6 +87,4 @@ export const store = configureStore({
     timer: timerSlice.reducer,
     tasks: tasksSlice.reducer,
   },
-});
-
-console.log('Redux store initialized:', store.getState()); 
+}); 

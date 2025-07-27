@@ -1,44 +1,44 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { colors, typography, spacing, shadows, borderRadius, transitions, createButtonStyle, createInputStyle, createBadgeStyle } from '../../styles';
+
+console.log('Projects component rendered');
 
 const PROJECTS_API = 'http://localhost:4000/api/projects';
 const TASKS_API = 'http://localhost:4000/api/tasks';
 const EMPLOYEES_API = 'http://localhost:4000/api/employees';
 
-const Projects = () => {
-  // Modal wrapper component for click-outside-to-close functionality
-  const ModalWrapper = ({ isOpen, onClose, children }) => {
-    if (!isOpen) return null;
-    
-    const handleBackdropClick = (e) => {
-      if (e.target === e.currentTarget) {
-        onClose();
-      }
-    };
-
-    return (
-      <div
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.5)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 1000,
-          padding: spacing[4],
-        }}
-        onClick={handleBackdropClick}
-      >
-        {children}
-      </div>
-    );
+// Move ModalWrapper outside Projects
+const ModalWrapper = ({ isOpen, onClose, children }) => {
+  if (!isOpen) return null;
+  const handleBackdropClick = (e) => {
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
   };
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1000,
+        padding: spacing[4],
+      }}
+      onClick={handleBackdropClick}
+    >
+      {children}
+    </div>
+  );
+};
 
+const Projects = () => {
   const [projects, setProjects] = useState([]);
   const [selected, setSelected] = useState(null);
   const [edit, setEdit] = useState(null);
@@ -50,14 +50,34 @@ const Projects = () => {
   const [addForm, setAddForm] = useState({
     name: '',
     description: '',
-    tasks: [{ name: '', description: '', employeeIds: [] }]
+    tasks: [{ id: 1, name: '', description: '', employeeIds: [] }]
   });
   const [employees, setEmployees] = useState([]);
+
+  // Refs for maintaining focus
+  const editNameRef = useRef(null);
+  const editDescriptionRef = useRef(null);
+  const addNameRef = useRef(null);
+  const addDescriptionRef = useRef(null);
 
   useEffect(() => {
     fetchProjects();
     fetchEmployees();
   }, []);
+
+  // Focus on first input when edit modal opens
+  useEffect(() => {
+    if (showEditModal && editNameRef.current) {
+      editNameRef.current.focus();
+    }
+  }, [showEditModal]);
+
+  // Focus on first input when add modal opens
+  useEffect(() => {
+    if (showAddModal && addNameRef.current) {
+      addNameRef.current.focus();
+    }
+  }, [showAddModal]);
 
   const fetchProjects = async () => {
     const res = await axios.get(PROJECTS_API);
@@ -83,7 +103,12 @@ const Projects = () => {
     try {
       const res = await axios.get(TASKS_API);
       const projectTasks = res.data.filter(task => task.projectId === projectId);
-      setEditTasks(projectTasks);
+      // Add unique IDs to existing tasks for stable keys
+      const tasksWithIds = projectTasks.map(task => ({
+        ...task,
+        id: task._id || Date.now() + Math.random()
+      }));
+      setEditTasks(tasksWithIds);
     } catch (err) {
       console.error('Failed to fetch tasks:', err);
     }
@@ -105,80 +130,68 @@ const Projects = () => {
     setShowEditModal(true);
   };
 
-  const handleEditChange = (e) => {
-    setEditData({ ...editData, [e.target.name]: e.target.value });
-  };
+  const handleEditChange = useCallback((e) => {
+    setEditData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  }, []);
 
-  const handleEditTaskChange = (index, field, value) => {
-    const newTasks = [...editTasks];
-    newTasks[index][field] = value;
-    setEditTasks(newTasks);
-  };
+  const handleEditTaskChange = useCallback((index, field, value) => {
+    setEditTasks(prev => {
+      const newTasks = [...prev];
+      newTasks[index] = { ...newTasks[index], [field]: value };
+      return newTasks;
+    });
+  }, []);
 
-  const handleEditEmployeeChange = async (taskIndex, employeeId) => {
-    const newTasks = [...editTasks];
-    const currentEmployeeIds = newTasks[taskIndex].employeeIds || [];
-    const task = newTasks[taskIndex];
-    
-    if (currentEmployeeIds.includes(employeeId)) {
-      // Remove employee from task
-      newTasks[taskIndex].employeeIds = currentEmployeeIds.filter(id => id !== employeeId);
-      
-      // Remove taskId from employee's taskIds array
-      if (task._id) {
-        try {
-          await axios.put(`${EMPLOYEES_API}/${employeeId}`, {
-            $pull: { taskIds: task._id }
-          });
-        } catch (err) {
-          console.error('Failed to remove task from employee:', err);
-        }
+  // Update handleEditEmployeeChange to only update state, not make axios calls
+  const handleEditEmployeeChange = useCallback((taskIndex, employeeId) => {
+    setEditTasks(prev => {
+      const newTasks = [...prev];
+      const currentEmployeeIds = newTasks[taskIndex].employeeIds || [];
+      if (currentEmployeeIds.includes(employeeId)) {
+        newTasks[taskIndex] = {
+          ...newTasks[taskIndex],
+          employeeIds: currentEmployeeIds.filter(id => id !== employeeId)
+        };
+      } else {
+        newTasks[taskIndex] = {
+          ...newTasks[taskIndex],
+          employeeIds: [...currentEmployeeIds, employeeId]
+        };
       }
-    } else {
-      // Add employee to task
-      newTasks[taskIndex].employeeIds = [...currentEmployeeIds, employeeId];
-      
-      // Add taskId to employee's taskIds array
-      if (task._id) {
-        try {
-          await axios.put(`${EMPLOYEES_API}/${employeeId}`, {
-            $addToSet: { taskIds: task._id }
-          });
-        } catch (err) {
-          console.error('Failed to add task to employee:', err);
-        }
-      }
-    }
-    
-    setEditTasks(newTasks);
-  };
+      return newTasks;
+    });
+  }, []);
 
-  const handleAddEditTask = () => {
-    setEditTasks([...editTasks, { 
+  const handleAddEditTask = useCallback(() => {
+    setEditTasks(prev => [...prev, { 
+      id: Date.now(), // Add unique ID for stable keys
       name: '', 
       description: '', 
       employeeIds: [], 
       projectId: editData._id,
       isNew: true 
     }]);
-  };
+  }, [editData._id]);
 
-  const handleRemoveEditTask = async (index) => {
-    const newTasks = [...editTasks];
-    const taskToRemove = newTasks[index];
-    
-    if (taskToRemove._id && !taskToRemove.isNew) {
-      try {
-        await axios.delete(`${TASKS_API}/${taskToRemove._id}`);
-      } catch (err) {
-        console.error('Failed to delete task:', err);
+  const handleRemoveEditTask = useCallback(async (index) => {
+    setEditTasks(prev => {
+      const newTasks = [...prev];
+      const taskToRemove = newTasks[index];
+      
+      if (taskToRemove._id && !taskToRemove.isNew) {
+        try {
+          axios.delete(`${TASKS_API}/${taskToRemove._id}`);
+        } catch (err) {
+          console.error('Failed to delete task:', err);
+        }
       }
-    }
-    
-    newTasks.splice(index, 1);
-    setEditTasks(newTasks);
-  };
+      
+      newTasks.splice(index, 1);
+      return newTasks;
+    });
+  }, []);
 
+  // In handleEditSubmit, send the correct employeeIds for each task
   const handleEditSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -191,25 +204,12 @@ const Projects = () => {
       // Update tasks
       for (const task of editTasks) {
         if (task.isNew) {
-          const taskRes = await axios.post(TASKS_API, {
+          await axios.post(TASKS_API, {
             name: task.name,
             description: task.description,
             projectId: editData._id,
             employeeIds: task.employeeIds
           });
-
-          // Update each assigned employee's taskIds array for new tasks
-          if (task.employeeIds && task.employeeIds.length > 0) {
-            for (const employeeId of task.employeeIds) {
-              try {
-                await axios.put(`${EMPLOYEES_API}/${employeeId}`, {
-                  $addToSet: { taskIds: taskRes.data._id }
-                });
-              } catch (err) {
-                console.error('Failed to add task to employee:', err);
-              }
-            }
-          }
         } else {
           await axios.put(`${TASKS_API}/${task._id}`, {
             name: task.name,
@@ -243,38 +243,55 @@ const Projects = () => {
     }
   };
 
-  const handleAddTask = () => {
-    setAddForm({
-      ...addForm,
-      tasks: [...addForm.tasks, { name: '', description: '', employeeIds: [] }]
+  const handleAddTask = useCallback(() => {
+    setAddForm(prev => ({
+      ...prev,
+      tasks: [...prev.tasks, { 
+        id: Date.now(), // Add unique ID for stable keys
+        name: '', 
+        description: '', 
+        employeeIds: [] 
+      }]
+    }));
+  }, []);
+
+  const handleRemoveTask = useCallback((index) => {
+    setAddForm(prev => {
+      const newTasks = [...prev.tasks];
+      newTasks.splice(index, 1);
+      return { ...prev, tasks: newTasks };
     });
-  };
+  }, []);
 
-  const handleRemoveTask = (index) => {
-    const newTasks = [...addForm.tasks];
-    newTasks.splice(index, 1);
-    setAddForm({ ...addForm, tasks: newTasks });
-  };
+  const handleTaskChange = useCallback((index, field, value) => {
+    setAddForm(prev => {
+      const newTasks = [...prev.tasks];
+      newTasks[index] = { ...newTasks[index], [field]: value };
+      return { ...prev, tasks: newTasks };
+    });
+  }, []);
 
-  const handleTaskChange = (index, field, value) => {
-    const newTasks = [...addForm.tasks];
-    newTasks[index][field] = value;
-    setAddForm({ ...addForm, tasks: newTasks });
-  };
+  // Update handleEmployeeChange to only update state, not make axios calls
+  const handleEmployeeChange = useCallback((taskIndex, employeeId) => {
+    setAddForm(prev => {
+      const newTasks = [...prev.tasks];
+      const currentEmployeeIds = newTasks[taskIndex].employeeIds || [];
+      if (currentEmployeeIds.includes(employeeId)) {
+        newTasks[taskIndex] = {
+          ...newTasks[taskIndex],
+          employeeIds: currentEmployeeIds.filter(id => id !== employeeId)
+        };
+      } else {
+        newTasks[taskIndex] = {
+          ...newTasks[taskIndex],
+          employeeIds: [...currentEmployeeIds, employeeId]
+        };
+      }
+      return { ...prev, tasks: newTasks };
+    });
+  }, []);
 
-  const handleEmployeeChange = (taskIndex, employeeId) => {
-    const newTasks = [...addForm.tasks];
-    const currentEmployeeIds = newTasks[taskIndex].employeeIds || [];
-    
-    if (currentEmployeeIds.includes(employeeId)) {
-      newTasks[taskIndex].employeeIds = currentEmployeeIds.filter(id => id !== employeeId);
-    } else {
-      newTasks[taskIndex].employeeIds = [...currentEmployeeIds, employeeId];
-    }
-    
-    setAddForm({ ...addForm, tasks: newTasks });
-  };
-
+  // In handleAddSubmit, send the correct employeeIds for each task
   const handleAddSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -284,34 +301,21 @@ const Projects = () => {
         description: addForm.description
       });
 
-      // Create tasks and update employee taskIds
+      // Create tasks
       for (const task of addForm.tasks) {
-        const taskRes = await axios.post(TASKS_API, {
+        await axios.post(TASKS_API, {
           name: task.name,
           description: task.description,
           projectId: projectRes.data._id,
           employeeIds: task.employeeIds
         });
-
-        // Update each assigned employee's taskIds array
-        if (task.employeeIds && task.employeeIds.length > 0) {
-          for (const employeeId of task.employeeIds) {
-            try {
-              await axios.put(`${EMPLOYEES_API}/${employeeId}`, {
-                $addToSet: { taskIds: taskRes.data._id }
-              });
-            } catch (err) {
-              console.error('Failed to add task to employee:', err);
-            }
-          }
-        }
       }
 
       setShowAddModal(false);
       setAddForm({
         name: '',
         description: '',
-        tasks: [{ name: '', description: '', employeeIds: [] }]
+        tasks: [{ id: Date.now(), name: '', description: '', employeeIds: [] }]
       });
       fetchProjects();
     } catch (err) {
@@ -670,6 +674,7 @@ const Projects = () => {
                 required
                 style={createInputStyle()}
                 placeholder="Enter project name"
+                ref={editNameRef}
               />
             </div>
             
@@ -690,10 +695,12 @@ const Projects = () => {
                 required
                 style={{
                   ...createInputStyle(),
+                  fontFamily: typography.fontFamily.primary,
                   minHeight: '100px',
                   resize: 'vertical',
                 }}
                 placeholder="Enter project description"
+                ref={editDescriptionRef}
               />
             </div>
 
@@ -727,7 +734,7 @@ const Projects = () => {
               <div style={{ display: 'grid', gap: spacing[4] }}>
                 {editTasks.map((task, index) => (
                   <div
-                    key={index}
+                    key={task.id}
                     style={{
                       padding: spacing[4],
                       background: colors.gray[50],
@@ -767,6 +774,7 @@ const Projects = () => {
                         onChange={(e) => handleEditTaskChange(index, 'name', e.target.value)}
                         placeholder="Task name"
                         style={createInputStyle()}
+                        key={`edit-task-name-${task.id}`}
                       />
                     </div>
                     
@@ -781,10 +789,11 @@ const Projects = () => {
                           minHeight: '60px',
                           resize: 'vertical',
                         }}
+                        key={`edit-task-description-${task.id}`}
                       />
                     </div>
                     
-                    <div>
+                    <div style={{ marginBottom: spacing[3] }}>
                       <label style={{
                         display: 'block',
                         marginBottom: spacing[2],
@@ -792,321 +801,327 @@ const Projects = () => {
                         fontSize: typography.fontSize.sm,
                         fontWeight: typography.fontWeight.medium,
                       }}>
-                        Assigned Employees
+                        Assign Employees
                       </label>
                       <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+                        display: 'flex',
+                        flexWrap: 'wrap',
                         gap: spacing[2],
                       }}>
-                        {employees.map((emp) => (
-                          <label
-                            key={emp._id}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: spacing[2],
-                              fontSize: typography.fontSize.sm,
-                              color: colors.gray[700],
-                            }}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={(task.employeeIds || []).includes(emp._id)}
-                              onChange={() => handleEditEmployeeChange(index, emp._id)}
+                        {employees.map(employee => {
+                          const isSelected = (task.employeeIds || []).includes(employee._id);
+                          return (
+                            <button
+                              type="button"
+                              key={employee._id}
+                              onClick={() => handleEditEmployeeChange(index, employee._id)}
                               style={{
-                                width: '16px',
-                                height: '16px',
-                                accentColor: colors.primary[600],
+                                ...createButtonStyle('secondary', 'sm'),
+                                padding: spacing[1],
+                                borderRadius: borderRadius.full,
+                                fontSize: typography.fontSize.xs,
+                                fontWeight: typography.fontWeight.medium,
+                                color: colors.gray[700],
+                                backgroundColor: isSelected ? colors.primary[100] : '#fff',
+                                border: `1px solid ${isSelected ? colors.primary[400] : colors.gray[300]}`,
+                                transition: 'background 0.2s, border 0.2s',
                               }}
-                            />
-                            {emp.firstName} {emp.lastName}
-                          </label>
-                        ))}
+                            >
+                              {employee.firstName} {employee.lastName}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
-            
-            <div style={{ display: 'flex', gap: spacing[3] }}>
-              <button
-                type="submit"
-                style={{
-                  ...createButtonStyle('success', 'md'),
-                }}
-              >
-                Save Changes
-              </button>
+
+            <div style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: spacing[3],
+              marginTop: spacing[8],
+            }}>
               <button
                 type="button"
-                onClick={() => {
-                  setShowEditModal(false);
-                  setEditData({ name: '', description: '' });
-                  setEditTasks([]);
-                }}
+                onClick={() => setShowEditModal(false)}
                 style={{
                   ...createButtonStyle('secondary', 'md'),
                 }}
               >
                 Cancel
               </button>
+              <button
+                type="submit"
+                style={{
+                  ...createButtonStyle('primary', 'md'),
+                }}
+              >
+                Save Changes
+              </button>
             </div>
           </form>
         </div>
-        </ModalWrapper>
+      </ModalWrapper>
 
       {/* Add Project Modal */}
       <ModalWrapper isOpen={showAddModal} onClose={() => setShowAddModal(false)}>
+        <div style={{
+          backgroundColor: colors.background.primary,
+          borderRadius: borderRadius['2xl'],
+          padding: spacing[8],
+          width: '100%',
+          maxWidth: '600px',
+          maxHeight: '90vh',
+          overflowY: 'auto',
+          boxShadow: shadows['2xl'],
+          border: `1px solid ${colors.gray[200]}`,
+        }}>
           <div style={{
-            backgroundColor: colors.background.primary,
-            borderRadius: borderRadius['2xl'],
-            padding: spacing[8],
-            width: '100%',
-            maxWidth: '600px',
-            maxHeight: '90vh',
-            overflowY: 'auto',
-            boxShadow: shadows['2xl'],
-            border: `1px solid ${colors.gray[200]}`,
+            display: 'flex',
+            alignItems: 'center',
+            gap: spacing[3],
+            marginBottom: spacing[6],
           }}>
             <div style={{
+              width: 48,
+              height: 48,
+              background: `linear-gradient(135deg, ${colors.primary[500]} 0%, ${colors.primary[600]} 100%)`,
+              borderRadius: borderRadius.lg,
               display: 'flex',
               alignItems: 'center',
-              gap: spacing[3],
-              marginBottom: spacing[6],
+              justifyContent: 'center',
+              color: 'white',
+              fontWeight: typography.fontWeight.bold,
             }}>
-              <div style={{
-                width: 48,
-                height: 48,
-                background: `linear-gradient(135deg, ${colors.success[500]} 0%, ${colors.success[600]} 100%)`,
-                borderRadius: borderRadius.lg,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'white',
-                fontWeight: typography.fontWeight.bold,
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 4v16m8-8H4"/>
+              </svg>
+            </div>
+            <h2 style={{
+              fontSize: typography.fontSize['2xl'],
+              fontWeight: typography.fontWeight.bold,
+              color: colors.gray[900],
+              margin: 0,
+            }}>
+              Add New Project
+            </h2>
+          </div>
+          
+          <form onSubmit={handleAddSubmit}>
+            <div style={{ marginBottom: spacing[6] }}>
+              <label style={{
+                display: 'block',
+                marginBottom: spacing[2],
+                color: colors.gray[700],
+                fontSize: typography.fontSize.sm,
+                fontWeight: typography.fontWeight.medium,
               }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="12" y1="5" x2="12" y2="19"/>
-                  <line x1="5" y1="12" x2="19" y2="12"/>
-                </svg>
-              </div>
-              <h2 style={{
-                fontSize: typography.fontSize['2xl'],
-                fontWeight: typography.fontWeight.bold,
-                color: colors.gray[900],
-                margin: 0,
-              }}>
-                Add New Project
-              </h2>
+                Project Name
+              </label>
+              <input
+                type="text"
+                name="name"
+                value={addForm.name}
+                onChange={e => setAddForm(prev => ({ ...prev, [e.target.name]: e.target.value }))}
+                required
+                style={createInputStyle()}
+                placeholder="Enter project name"
+                ref={addNameRef}
+              />
             </div>
             
-            <form onSubmit={handleAddSubmit}>
-              <div style={{ marginBottom: spacing[6] }}>
-                <label style={{
-                  display: 'block',
-                  marginBottom: spacing[2],
-                  color: colors.gray[700],
-                  fontSize: typography.fontSize.sm,
-                  fontWeight: typography.fontWeight.medium,
-                }}>
-                  Project Name
-                </label>
-                <input
-                  type="text"
-                  value={addForm.name}
-                  onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
-                  required
-                  style={createInputStyle()}
-                  placeholder="Enter project name"
-                />
-              </div>
-              
-              <div style={{ marginBottom: spacing[8] }}>
-                <label style={{
-                  display: 'block',
-                  marginBottom: spacing[2],
-                  color: colors.gray[700],
-                  fontSize: typography.fontSize.sm,
-                  fontWeight: typography.fontWeight.medium,
-                }}>
-                  Description
-                </label>
-                <textarea
-                  value={addForm.description}
-                  onChange={(e) => setAddForm({ ...addForm, description: e.target.value })}
-                  required
-                  style={{
-                    ...createInputStyle(),
-                    minHeight: '100px',
-                    resize: 'vertical',
-                  }}
-                  placeholder="Enter project description"
-                />
-              </div>
+            <div style={{ marginBottom: spacing[8] }}>
+              <label style={{
+                display: 'block',
+                marginBottom: spacing[2],
+                color: colors.gray[700],
+                fontSize: typography.fontSize.sm,
+                fontWeight: typography.fontWeight.medium,
+              }}>
+                Description
+              </label>
+              <textarea
+                name="description"
+                value={addForm.description}
+                onChange={e => setAddForm(prev => ({ ...prev, [e.target.name]: e.target.value }))}
+                required
+                style={{
+                  ...createInputStyle(),
+                  fontFamily: typography.fontFamily.primary,
+                  minHeight: '100px',
+                  resize: 'vertical',
+                }}
+                placeholder="Enter project description"
+                ref={addDescriptionRef}
+              />
+            </div>
 
-              {/* Tasks Section */}
-              <div style={{ marginBottom: spacing[8] }}>
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  marginBottom: spacing[4],
+            {/* Tasks Section */}
+            <div style={{ marginBottom: spacing[8] }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: spacing[4],
+              }}>
+                <h3 style={{
+                  fontSize: typography.fontSize.lg,
+                  fontWeight: typography.fontWeight.semibold,
+                  color: colors.gray[900],
+                  margin: 0,
                 }}>
-                  <h3 style={{
-                    fontSize: typography.fontSize.lg,
-                    fontWeight: typography.fontWeight.semibold,
-                    color: colors.gray[900],
-                    margin: 0,
-                  }}>
-                    Tasks
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={handleAddTask}
-                    style={{
-                      ...createButtonStyle('secondary', 'sm'),
-                    }}
-                  >
-                    Add Task
-                  </button>
-                </div>
-                
-                <div style={{ display: 'grid', gap: spacing[4] }}>
-                  {addForm.tasks.map((task, index) => (
-                    <div
-                      key={index}
-                      style={{
-                        padding: spacing[4],
-                        background: colors.gray[50],
-                        borderRadius: borderRadius.lg,
-                        border: `1px solid ${colors.gray[200]}`,
-                      }}
-                    >
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        marginBottom: spacing[3],
-                      }}>
-                        <h4 style={{
-                          fontSize: typography.fontSize.base,
-                          fontWeight: typography.fontWeight.medium,
-                          color: colors.gray[900],
-                          margin: 0,
-                        }}>
-                          Task {index + 1}
-                        </h4>
-                        {addForm.tasks.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveTask(index)}
-                            style={{
-                              ...createButtonStyle('danger', 'sm'),
-                            }}
-                          >
-                            Remove
-                          </button>
-                        )}
-                      </div>
-                      
-                      <div style={{ marginBottom: spacing[3] }}>
-                        <input
-                          type="text"
-                          value={task.name}
-                          onChange={(e) => handleTaskChange(index, 'name', e.target.value)}
-                          placeholder="Task name"
-                          style={createInputStyle()}
-                        />
-                      </div>
-                      
-                      <div style={{ marginBottom: spacing[3] }}>
-                        <textarea
-                          value={task.description}
-                          onChange={(e) => handleTaskChange(index, 'description', e.target.value)}
-                          placeholder="Task description"
-                          style={{
-                            ...createInputStyle(),
-                            fontFamily: typography.fontFamily.primary,
-                            minHeight: '60px',
-                            resize: 'vertical',
-                          }}
-                        />
-                      </div>
-                      
-                      <div>
-                        <label style={{
-                          display: 'block',
-                          marginBottom: spacing[2],
-                          color: colors.gray[700],
-                          fontSize: typography.fontSize.sm,
-                          fontWeight: typography.fontWeight.medium,
-                        }}>
-                          Assigned Employees
-                        </label>
-                        <div style={{
-                          display: 'grid',
-                          gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-                          gap: spacing[2],
-                        }}>
-                          {employees.map((emp) => (
-                            <label
-                              key={emp._id}
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: spacing[2],
-                                fontSize: typography.fontSize.sm,
-                                color: colors.gray[700],
-                              }}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={(task.employeeIds || []).includes(emp._id)}
-                                onChange={() => handleEmployeeChange(index, emp._id)}
-                                style={{
-                                  width: '16px',
-                                  height: '16px',
-                                  accentColor: colors.primary[600],
-                                }}
-                              />
-                              {emp.firstName} {emp.lastName}
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              
-              <div style={{ display: 'flex', gap: spacing[3] }}>
-                <button
-                  type="submit"
-                  style={{
-                    ...createButtonStyle('success', 'md'),
-                    flex: 1,
-                  }}
-                >
-                  Create Project
-                </button>
+                  Tasks
+                </h3>
                 <button
                   type="button"
-                  onClick={() => setShowAddModal(false)}
+                  onClick={handleAddTask}
                   style={{
-                    ...createButtonStyle('secondary', 'md'),
-                    flex: 1,
+                    ...createButtonStyle('secondary', 'sm'),
                   }}
                 >
-                  Cancel
+                  Add Task
                 </button>
               </div>
-            </form>
-          </div>
-        </ModalWrapper>
+              
+              <div style={{ display: 'grid', gap: spacing[4] }}>
+                {addForm.tasks.map((task, index) => (
+                  <div
+                    key={task.id}
+                    style={{
+                      padding: spacing[4],
+                      background: colors.gray[50],
+                      borderRadius: borderRadius.lg,
+                      border: `1px solid ${colors.gray[200]}`,
+                    }}
+                  >
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginBottom: spacing[3],
+                    }}>
+                      <h4 style={{
+                        fontSize: typography.fontSize.base,
+                        fontWeight: typography.fontWeight.medium,
+                        color: colors.gray[900],
+                        margin: 0,
+                      }}>
+                        Task {index + 1}
+                      </h4>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveTask(index)}
+                        style={{
+                          ...createButtonStyle('danger', 'sm'),
+                        }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                    
+                    <div style={{ marginBottom: spacing[3] }}>
+                      <input
+                        type="text"
+                        value={task.name}
+                        onChange={(e) => handleTaskChange(index, 'name', e.target.value)}
+                        placeholder="Task name"
+                        style={createInputStyle()}
+                        key={`add-task-name-${task.id}`}
+                      />
+                    </div>
+                    
+                    <div style={{ marginBottom: spacing[3] }}>
+                      <textarea
+                        value={task.description}
+                        onChange={(e) => handleTaskChange(index, 'description', e.target.value)}
+                        placeholder="Task description"
+                        style={{
+                          ...createInputStyle(),
+                          fontFamily: typography.fontFamily.primary,
+                          minHeight: '60px',
+                          resize: 'vertical',
+                        }}
+                        key={`add-task-description-${task.id}`}
+                      />
+                    </div>
+                    
+                    <div style={{ marginBottom: spacing[3] }}>
+                      <label style={{
+                        display: 'block',
+                        marginBottom: spacing[2],
+                        color: colors.gray[700],
+                        fontSize: typography.fontSize.sm,
+                        fontWeight: typography.fontWeight.medium,
+                      }}>
+                        Assign Employees
+                      </label>
+                      <div style={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: spacing[2],
+                      }}>
+                        {employees.map(employee => {
+                          const isSelected = (task.employeeIds || []).includes(employee._id);
+                          return (
+                            <button
+                              type="button"
+                              key={employee._id}
+                              onClick={() => handleEmployeeChange(index, employee._id)}
+                              style={{
+                                ...createButtonStyle('secondary', 'sm'),
+                                padding: spacing[1],
+                                borderRadius: borderRadius.full,
+                                fontSize: typography.fontSize.xs,
+                                fontWeight: typography.fontWeight.medium,
+                                color: colors.gray[700],
+                                backgroundColor: isSelected ? colors.primary[100] : '#fff',
+                                border: `1px solid ${isSelected ? colors.primary[400] : colors.gray[300]}`,
+                                transition: 'background 0.2s, border 0.2s',
+                              }}
+                            >
+                              {employee.firstName} {employee.lastName}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: spacing[3],
+              marginTop: spacing[8],
+            }}>
+              <button
+                type="button"
+                onClick={() => setShowAddModal(false)}
+                style={{
+                  ...createButtonStyle('secondary', 'md'),
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                style={{
+                  ...createButtonStyle('primary', 'md'),
+                }}
+              >
+                Create Project
+              </button>
+            </div>
+          </form>
+        </div>
+      </ModalWrapper>
     </div>
   );
 };
 
-export default Projects; 
+export default Projects;
