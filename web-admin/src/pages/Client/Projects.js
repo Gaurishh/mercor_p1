@@ -854,22 +854,22 @@ const Projects = () => {
               </button>
             </div>
           </form>
-          </div>
+        </div>
         </ModalWrapper>
 
       {/* Add Project Modal */}
       <ModalWrapper isOpen={showAddModal} onClose={() => setShowAddModal(false)}>
-        <div style={{
-          backgroundColor: colors.background.primary,
-          borderRadius: borderRadius['2xl'],
-          padding: spacing[8],
-          width: '100%',
-          maxWidth: '600px',
-          maxHeight: '90vh',
-          overflowY: 'auto',
-          boxShadow: shadows['2xl'],
-          border: `1px solid ${colors.gray[200]}`,
-        }}>
+          <div style={{
+            backgroundColor: colors.background.primary,
+            borderRadius: borderRadius['2xl'],
+            padding: spacing[8],
+            width: '100%',
+            maxWidth: '600px',
+            maxHeight: '90vh',
+            overflowY: 'auto',
+            boxShadow: shadows['2xl'],
+            border: `1px solid ${colors.gray[200]}`,
+          }}>
             <div style={{
               display: 'flex',
               alignItems: 'center',

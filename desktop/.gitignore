@@ -98,6 +98,10 @@ typings/
 # Nuxt.js build / generate output
 .nuxt
 
+# Screenshots
+screenshots/
+*.png
+
 # Gatsby files
 .cache/
 public

@@ -1,9 +1,78 @@
 import React, { useState, useEffect } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
+import { createRoot } from 'react-dom/client';
+import { Provider } from 'react-redux';
 import { colors, typography, spacing, shadows, borderRadius, transitions, createButtonStyle, createCardStyle } from './styles';
 import Attendance from './Attendance';
 import Tasks from './Projects';
 import AuthPage from './AuthPage';
 import AdminRedirect from './AdminRedirect';
+import { store } from './store';
+import { setAuth, clearAuth } from './store';
+
+// Error Boundary Component
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('Error caught by boundary:', error, errorInfo);
+    
+    // If it's a DOM manipulation error, try to recover
+    if (error.message && error.message.includes('removeChild')) {
+      console.log('DOM manipulation error detected, attempting recovery...');
+      // Force a re-render by updating state
+      setTimeout(() => {
+        this.setState({ hasError: false, error: null });
+      }, 100);
+    }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          padding: spacing[6],
+          textAlign: 'center',
+          color: colors.error[600],
+        }}>
+          <h2>Something went wrong!</h2>
+          <p>{this.state.error?.message}</p>
+          <button 
+            onClick={() => {
+              this.setState({ hasError: false, error: null });
+              window.location.reload();
+            }}
+            style={createButtonStyle('primary', 'md')}
+          >
+            Reload App
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+// Test Component to verify Redux is working
+const TestComponent = () => {
+  const auth = useSelector(state => state.auth);
+  console.log('TestComponent auth state:', auth);
+  
+  return (
+    <div style={{ padding: spacing[4], background: colors.gray[100] }}>
+      <h3>Redux Test</h3>
+      <p>Auth State: {JSON.stringify(auth)}</p>
+    </div>
+  );
+};
 
 // Navigation component
 const Navigation = ({ activeTab, onTabChange, onSignOut, showSideMenu, setShowSideMenu }) => (
@@ -25,9 +94,9 @@ const Navigation = ({ activeTab, onTabChange, onSignOut, showSideMenu, setShowSi
         cursor: 'pointer',
         padding: spacing[2],
         borderRadius: borderRadius.md,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
         transition: `all ${transitions.base}`,
         color: colors.gray[600],
         '&:hover': {
@@ -35,11 +104,11 @@ const Navigation = ({ activeTab, onTabChange, onSignOut, showSideMenu, setShowSi
         },
       }}
     >
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <line x1="3" y1="6" x2="21" y2="6"></line>
         <line x1="3" y1="12" x2="21" y2="12"></line>
         <line x1="3" y1="18" x2="21" y2="18"></line>
-      </svg>
+            </svg>
     </button>
     
     {/* Centered Tab Buttons */}
@@ -68,30 +137,39 @@ const Navigation = ({ activeTab, onTabChange, onSignOut, showSideMenu, setShowSi
       >
         Tasks
       </button>
-    </div>
-    
+        </div>
+        
     {/* Spacer to balance the layout */}
     <div style={{ width: '44px' }}></div>
-  </div>
+      </div>
 );
 
 // Main App component
 const App = () => {
+  const dispatch = useDispatch();
+  const { employeeId, isAdmin } = useSelector(state => state.auth);
   const [activeTab, setActiveTab] = useState('attendance');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userInfo, setUserInfo] = useState(null);
   const [showSideMenu, setShowSideMenu] = useState(false);
+  const [isTakingScreenshot, setIsTakingScreenshot] = useState(false);
+
+  console.log('App component rendering:', { employeeId, isAdmin });
 
   // Check for existing authentication on app start
   useEffect(() => {
-    const isAdmin = localStorage.getItem('isAdmin');
-    const employeeId = localStorage.getItem('employeeId');
+    console.log('App useEffect running');
+    console.log('window.electronAPI available:', !!window.electronAPI);
+    const storedIsAdmin = localStorage.getItem('isAdmin');
+    const storedEmployeeId = localStorage.getItem('employeeId');
     
-    if (isAdmin !== null && employeeId) {
-      setIsAuthenticated(true);
-      setUserInfo({ isAdmin: isAdmin === 'true', employeeId });
+    console.log('Stored values:', { storedIsAdmin, storedEmployeeId });
+    
+    if (storedIsAdmin !== null && storedEmployeeId) {
+      dispatch(setAuth({ 
+        isAdmin: storedIsAdmin === 'true', 
+        employeeId: storedEmployeeId 
+      }));
     }
-  }, []);
+  }, [dispatch]);
 
   // Handle click outside side menu
   useEffect(() => {
@@ -113,31 +191,60 @@ const App = () => {
     };
   }, [showSideMenu]);
 
-  const handleAuthSuccess = (userData) => {
-    setIsAuthenticated(true);
-    setUserInfo(userData);
+  const handleSignOut = () => {
+    dispatch(clearAuth());
   };
 
-  const handleSignOut = () => {
-    localStorage.removeItem('isAdmin');
-    localStorage.removeItem('employeeId');
-    setIsAuthenticated(false);
-    setUserInfo(null);
+  const handleTakeScreenshot = async () => {
+    if (isTakingScreenshot) return;
+    
+    console.log('handleTakeScreenshot called');
+    console.log('window.electronAPI:', window.electronAPI);
+    
+    if (!window.electronAPI) {
+      console.error('electronAPI is not available');
+      alert('Screenshot feature is not available. Please restart the app.');
+      return;
+    }
+    
+    setIsTakingScreenshot(true);
+    try {
+      const result = await window.electronAPI.takeScreenshot();
+      if (result.success) {
+        // Show success feedback (you could add a toast notification here)
+        console.log(`Screenshot saved: ${result.filename}`);
+        alert(`Screenshot saved successfully!\nFile: ${result.filename}`);
+      } else {
+        console.error('Screenshot failed:', result.error);
+        alert(`Screenshot failed: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Error taking screenshot:', error);
+      alert('Failed to take screenshot. Please try again.');
+    } finally {
+      setIsTakingScreenshot(false);
+    }
   };
+
+  console.log('Rendering decision:', { employeeId, isAdmin });
 
   // Show authentication if not authenticated
-  if (!isAuthenticated) {
-    return <AuthPage onAuthSuccess={handleAuthSuccess} />;
+  if (!employeeId) {
+    console.log('Rendering AuthPage');
+    return <AuthPage key="auth" />;
   }
 
   // Show admin redirect if user is admin
-  if (userInfo?.isAdmin) {
-    return <AdminRedirect onSignOut={handleSignOut} />;
+  if (isAdmin) {
+    console.log('Rendering AdminRedirect');
+    return <AdminRedirect key="admin" />;
   }
+
+  console.log('Rendering main app');
 
   // Show main app for regular users
   return (
-    <div style={{
+    <div key="main-app" style={{
       display: 'flex',
       flexDirection: 'column',
       justifyContent: 'center',
@@ -263,6 +370,33 @@ const App = () => {
                 flex: 1,
               }}>
                 <button
+                  onClick={handleTakeScreenshot}
+                  disabled={isTakingScreenshot}
+                  style={{
+                    ...createButtonStyle('primary', 'md'),
+                    width: '100%',
+                    justifyContent: 'flex-start',
+                    gap: spacing[3],
+                    marginBottom: spacing[3],
+                    opacity: isTakingScreenshot ? 0.6 : 1,
+                    cursor: isTakingScreenshot ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {isTakingScreenshot ? (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}>
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <polyline points="12,6 12,12 16,14"></polyline>
+                    </svg>
+                  ) : (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                      <circle cx="12" cy="13" r="4"></circle>
+                    </svg>
+                  )}
+                  {isTakingScreenshot ? 'Taking Screenshot...' : 'Take Screenshot'}
+                </button>
+                
+                <button
                   onClick={handleSignOut}
                   style={{
                     ...createButtonStyle('secondary', 'md'),
@@ -298,11 +432,38 @@ const App = () => {
   );
 };
 
-export default App;
+const Root = () => (
+  <Provider store={store}>
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+  </Provider>
+);
+
+export default Root;
 
 // Render the app
-import { createRoot } from 'react-dom/client';
-
 const container = document.getElementById('root');
 const root = createRoot(container);
-root.render(<App />);
+
+try {
+  root.render(<Root />);
+} catch (error) {
+  console.error('Error rendering app:', error);
+root.render(
+    <div style={{
+      padding: spacing[6],
+      textAlign: 'center',
+      color: colors.error[600],
+    }}>
+      <h2>Failed to load app!</h2>
+      <p>{error.message}</p>
+      <button 
+        onClick={() => window.location.reload()}
+        style={createButtonStyle('primary', 'md')}
+      >
+        Reload App
+      </button>
+    </div>
+);
+}

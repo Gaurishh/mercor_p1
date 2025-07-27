@@ -3,6 +3,20 @@ const TimeLog = require('../models/TimeLog');
 
 const router = express.Router();
 
+// GET / - Get time logs by employeeId
+router.get('/', async (req, res) => {
+  try {
+    const { employeeId } = req.query;
+    if (!employeeId) {
+      return res.status(400).json({ error: 'employeeId is required' });
+    }
+    const timeLogs = await TimeLog.find({ employeeId }).sort({ clockIn: -1 });
+    res.json(timeLogs);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // POST / - Clock-in
 router.post('/', async (req, res) => {
   try {

@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
+import { useDispatch } from 'react-redux';
 import axios from 'axios';
 import { colors, typography, spacing, shadows, borderRadius, transitions, createButtonStyle, createInputStyle } from './styles';
+import { setAuth } from './store';
 
 const API_BASE = 'http://localhost:4000/api/auth';
 
-const AuthPage = ({ onAuthSuccess }) => {
+const AuthPage = () => {
+  const dispatch = useDispatch();
   const [activeTab, setActiveTab] = useState('signin');
   const [signInForm, setSignInForm] = useState({ email: '', password: '' });
   const [signUpForm, setSignUpForm] = useState({
@@ -26,14 +29,39 @@ const AuthPage = ({ onAuthSuccess }) => {
     e.preventDefault();
     setLoading(true);
     setMessage('');
+    console.log('Attempting sign in with:', signInForm);
+    
     try {
-      const res = await axios.post(`${API_BASE}/signin`, signInForm);
+      console.log('Making request to:', `${API_BASE}/signin`);
+      
+      // Add timeout to prevent hanging
+      const res = await axios.post(`${API_BASE}/signin`, signInForm, {
+        timeout: 10000 // 10 second timeout
+      });
+      
+      console.log('Sign in response:', res.data);
+      
       const { isAdmin, _id } = res.data.employee;
-      localStorage.setItem('isAdmin', isAdmin);
-      localStorage.setItem('employeeId', _id);
-      onAuthSuccess({ isAdmin, employeeId: _id });
+      console.log('Dispatching setAuth with:', { isAdmin, employeeId: _id });
+      dispatch(setAuth({ isAdmin, employeeId: _id }));
+      
+      console.log('Sign in successful');
+      
+      // Add a small delay to prevent rapid state changes
+      setTimeout(() => {
+        console.log('Sign in process completed');
+      }, 100);
     } catch (err) {
-      setMessage(err.response?.data?.error || 'Sign in failed');
+      console.error('Sign in error:', err);
+      console.error('Error response:', err.response);
+      
+      if (err.code === 'ECONNABORTED') {
+        setMessage('Request timed out. Please check if the backend server is running.');
+      } else if (err.code === 'ERR_NETWORK') {
+        setMessage('Network error. Please check if the backend server is running on http://localhost:4000');
+      } else {
+        setMessage(err.response?.data?.error || 'Sign in failed');
+      }
     } finally {
       setLoading(false);
     }

@@ -1,7 +1,11 @@
 import React from 'react';
+import { useDispatch } from 'react-redux';
 import { colors, typography, spacing, shadows, borderRadius, createButtonStyle } from './styles';
+import { clearAuth } from './store';
 
-const AdminRedirect = ({ onSignOut }) => {
+const AdminRedirect = () => {
+  const dispatch = useDispatch();
+
   const handleOpenWebApp = async () => {
     console.log('Button clicked!');
     console.log('electronAPI available:', !!window.electronAPI);
@@ -31,9 +35,7 @@ const AdminRedirect = ({ onSignOut }) => {
   };
 
   const handleSignOut = () => {
-    if (onSignOut) {
-      onSignOut();
-    }
+    dispatch(clearAuth());
   };
 
   return (

@@ -12,12 +12,14 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@reduxjs/toolkit": "^2.0.1",
     "axios": "latest",
     "concurrently": "latest",
     "form-data": "^4.0.4",
     "node-fetch": "^3.3.2",
     "react": "latest",
     "react-dom": "latest",
+    "react-redux": "^9.0.4",
     "react-router-dom": "latest",
     "react-scripts": "latest"
   },

@@ -52,10 +52,10 @@ const Employees = () => {
       // Send email with activation link
       try {
         await axios.post('http://localhost:4000/api/auth/send-activation-email', {
-          email: inviteForm.email,
+        email: inviteForm.email,
           fullName: inviteForm.fullName,
           token: token
-        });
+      });
         console.log('Activation email sent successfully');
       } catch (emailErr) {
         console.error('Failed to send activation email:', emailErr);

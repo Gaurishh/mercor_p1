@@ -1,5 +1,6 @@
 const { app, BrowserWindow, ipcMain, desktopCapturer, Menu, shell } = require('electron');
 const path = require('path');
+const fs = require('fs');
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -10,7 +11,8 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js')
+      preload: path.join(__dirname, 'preload.js'),
+      enableRemoteModule: false
     },
     // Prevent opening new windows
     webSecurity: true,
@@ -72,42 +74,52 @@ ipcMain.handle('open-external', async (event, url) => {
 });
 
 // IPC handler for taking screenshots
-ipcMain.handle('take-screenshot', async () => {
+ipcMain.handle('take-screenshot', async (event) => {
   try {
-    const sources = await desktopCapturer.getSources({ types: ['screen'] });
-    if (sources.length > 0) {
-      const source = sources[0];
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: {
-          mandatory: {
-            chromeMediaSource: 'desktop',
-            chromeMediaSourceId: source.id
-          }
-        }
-      });
-      
-      const video = document.createElement('video');
-      video.srcObject = stream;
-      await new Promise(resolve => video.addEventListener('loadedmetadata', resolve));
-      video.play();
-      
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(video, 0, 0);
-      
-      stream.getTracks().forEach(track => track.stop());
-      
-      return canvas.toDataURL('image/png');
+    // Ensure screenshots directory exists
+    const screenshotsDir = path.join(__dirname, 'screenshots');
+    if (!fs.existsSync(screenshotsDir)) {
+      fs.mkdirSync(screenshotsDir, { recursive: true });
     }
-    throw new Error('No screen sources found');
+
+    // Get all displays
+    const sources = await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: { width: 1920, height: 1080 }
+    });
+
+    if (sources.length === 0) {
+      throw new Error('No displays found');
+    }
+
+    // Take screenshot of primary display (first one)
+    const source = sources[0];
+    const image = source.thumbnail;
+    
+    // Generate filename with timestamp
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const filename = `screenshot_${timestamp}.png`;
+    const filepath = path.join(screenshotsDir, filename);
+
+    // Save the image
+    fs.writeFileSync(filepath, image.toPNG());
+    
+    console.log(`Screenshot saved: ${filepath}`);
+    return { 
+      success: true, 
+      filepath: filepath,
+      filename: filename 
+    };
   } catch (error) {
-    console.error('Screenshot error:', error);
-    throw error;
+    console.error('Error taking screenshot:', error);
+    return { 
+      success: false, 
+      error: error.message 
+    };
   }
 });
+
+
 
 app.whenReady().then(createWindow);
 

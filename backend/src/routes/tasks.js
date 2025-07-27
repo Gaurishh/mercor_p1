@@ -76,4 +76,92 @@ router.delete('/:_id', async (req, res) => {
   }
 });
 
+// PATCH /:_id/assign-employee - Add employee to task
+router.patch('/:_id/assign-employee', async (req, res) => {
+  try {
+    const { employeeId } = req.body;
+    if (!employeeId) {
+      return res.status(400).json({ error: 'employeeId is required' });
+    }
+
+    const task = await Task.findById(req.params._id);
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    // Add employeeId to workedOnBy array if not already present
+    if (!task.workedOnBy.includes(employeeId)) {
+      task.workedOnBy.push(employeeId);
+      await task.save();
+    }
+
+    res.json(task);
+  } catch (err) {
+    console.error('Error assigning employee to task:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PATCH /:_id/complete - Mark task as completed
+router.patch('/:_id/complete', async (req, res) => {
+  try {
+    const { employeeId } = req.body;
+    if (!employeeId) {
+      return res.status(400).json({ error: 'employeeId is required' });
+    }
+
+    const task = await Task.findById(req.params._id);
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    // Check if employee has worked on this task
+    if (!task.workedOnBy.includes(employeeId)) {
+      return res.status(403).json({ error: 'Employee has not worked on this task' });
+    }
+
+    // Mark task as completed
+    task.isCompleted = true;
+    task.completedAt = new Date();
+    task.completedBy = employeeId;
+    await task.save();
+
+    res.json(task);
+  } catch (err) {
+    console.error('Error completing task:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PATCH /:_id/uncomplete - Mark task as incomplete
+router.patch('/:_id/uncomplete', async (req, res) => {
+  try {
+    const { employeeId } = req.body;
+    if (!employeeId) {
+      return res.status(400).json({ error: 'employeeId is required' });
+    }
+
+    const task = await Task.findById(req.params._id);
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    // Check if the employee is the one who completed the task
+    if (task.completedBy && task.completedBy.toString() !== employeeId) {
+      return res.status(403).json({ error: 'Only the employee who completed the task can uncomplete it' });
+    }
+
+    // Mark task as incomplete
+    task.isCompleted = false;
+    task.completedAt = null;
+    task.completedBy = null;
+    await task.save();
+
+    res.json(task);
+  } catch (err) {
+    console.error('Error uncompleting task:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router; 

@@ -1,28 +1,27 @@
 import React, { useState, useEffect } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
 import axios from 'axios';
 import { colors, typography, spacing, shadows, borderRadius, transitions, createButtonStyle, createCardStyle, createBadgeStyle } from './styles';
+import { setSelectedTasks, setCurrentTimeLog, setTaskStatus } from './store';
 
 const API_BASE = 'http://localhost:4000/api';
 
 const Tasks = () => {
+  const dispatch = useDispatch();
+  const { selectedTasks, currentTimeLog, taskStatuses } = useSelector(state => state.tasks);
+  const { employeeId } = useSelector(state => state.auth);
+  const { isWorking } = useSelector(state => state.timer);
   const [tasks, setTasks] = useState([]);
   const [projects, setProjects] = useState([]);
-  const [currentTimeLog, setCurrentTimeLog] = useState(null);
-  const [selectedTasks, setSelectedTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [employeeId, setEmployeeId] = useState(null);
 
   useEffect(() => {
-    // Get employee ID from localStorage
-    const storedEmployeeId = localStorage.getItem('employeeId');
-    setEmployeeId(storedEmployeeId);
-    
-    if (storedEmployeeId) {
-      fetchEmployeeTasks(storedEmployeeId);
-      fetchCurrentTimeLog(storedEmployeeId);
+    if (employeeId) {
+      fetchEmployeeTasks(employeeId);
+      fetchCurrentTimeLog(employeeId);
     }
-  }, []);
+  }, [employeeId]);
 
   const fetchEmployeeTasks = async (empId) => {
     try {
@@ -38,6 +37,21 @@ const Tasks = () => {
       );
       
       setTasks(employeeTasks);
+      
+      // Initialize task statuses only if they don't already exist in Redux
+      const currentStatuses = taskStatuses;
+      const initialStatuses = {};
+      employeeTasks.forEach(task => {
+        // Only set status if it doesn't already exist in Redux
+        if (!currentStatuses[task._id]) {
+          initialStatuses[task._id] = 'Inactive';
+        }
+      });
+      
+      // Update Redux state with only new statuses
+      Object.entries(initialStatuses).forEach(([taskId, status]) => {
+        dispatch(setTaskStatus({ taskId, status }));
+      });
       
       // Fetch projects for these tasks
       const projectIds = [...new Set(employeeTasks.map(task => task.projectId))];
@@ -63,8 +77,8 @@ const Tasks = () => {
     try {
       const res = await axios.get(`${API_BASE}/timelogs?employeeId=${empId}`);
       const activeLog = res.data.find(log => !log.clockOut);
-      setCurrentTimeLog(activeLog);
-      setSelectedTasks(activeLog ? activeLog.taskIds : []);
+      dispatch(setCurrentTimeLog(activeLog));
+      dispatch(setSelectedTasks(activeLog ? activeLog.taskIds : []));
     } catch (err) {
       console.error('Failed to fetch current timelog:', err);
     }
@@ -76,7 +90,7 @@ const Tasks = () => {
         ? selectedTasks.filter(id => id !== taskId)
         : [...selectedTasks, taskId];
       
-      setSelectedTasks(newSelectedTasks);
+      dispatch(setSelectedTasks(newSelectedTasks));
       
       if (currentTimeLog) {
         await axios.patch(`${API_BASE}/timelogs/${currentTimeLog._id}`, {
@@ -86,7 +100,88 @@ const Tasks = () => {
     } catch (err) {
       console.error('Failed to update timelog tasks:', err);
       // Revert on error
-      setSelectedTasks(selectedTasks);
+      dispatch(setSelectedTasks(selectedTasks));
+    }
+  };
+
+  const handleStatusToggle = async (taskId) => {
+    try {
+      const currentStatus = taskStatuses[taskId] || 'Inactive';
+      const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
+      
+      // Update local state immediately
+      dispatch(setTaskStatus({ taskId, status: newStatus }));
+      
+      // If switching to Active, add employee to task
+      if (newStatus === 'Active') {
+        await axios.patch(`${API_BASE}/tasks/${taskId}/assign-employee`, {
+          employeeId
+        });
+        
+        // Update local task data to include employee in workedOnBy
+        setTasks(prevTasks => 
+          prevTasks.map(task => 
+            task._id === taskId 
+              ? { 
+                  ...task, 
+                  workedOnBy: task.workedOnBy ? [...task.workedOnBy, employeeId] : [employeeId]
+                }
+              : task
+          )
+        );
+      } else {
+        // If switching to Inactive, remove employee from task
+        setTasks(prevTasks => 
+          prevTasks.map(task => 
+            task._id === taskId 
+              ? { 
+                  ...task, 
+                  workedOnBy: task.workedOnBy ? task.workedOnBy.filter(id => id !== employeeId) : []
+                }
+              : task
+          )
+        );
+      }
+      
+      // Don't refresh tasks - keep the Redux state intact
+      
+    } catch (err) {
+      console.error('Failed to toggle task status:', err);
+      // Revert on error
+      dispatch(setTaskStatus({ taskId, status: currentStatus }));
+    }
+  };
+
+  const handleTaskComplete = async (taskId, isCompleted) => {
+    try {
+      if (isCompleted) {
+        // Mark as incomplete
+        await axios.patch(`${API_BASE}/tasks/${taskId}/uncomplete`, {
+          employeeId
+        });
+      } else {
+        // Mark as complete
+        await axios.patch(`${API_BASE}/tasks/${taskId}/complete`, {
+          employeeId
+        });
+      }
+      
+      // Update local task data instead of refreshing
+      setTasks(prevTasks => 
+        prevTasks.map(task => 
+          task._id === taskId 
+            ? { 
+                ...task, 
+                isCompleted: !isCompleted,
+                completedAt: !isCompleted ? new Date() : null,
+                completedBy: !isCompleted ? employeeId : null
+              }
+            : task
+        )
+      );
+      
+    } catch (err) {
+      console.error('Failed to update task completion:', err);
     }
   };
 
@@ -141,30 +236,34 @@ const Tasks = () => {
       overflow: 'hidden',
       boxSizing: 'border-box',
     }}>
-      {/* Status Alert */}
-      {!currentTimeLog && (
+
+
+      {/* Clock-in Warning */}
+      {!isWorking && (
         <div style={{
+          ...createCardStyle(),
           padding: spacing[4],
+          marginBottom: spacing[4],
           background: colors.warning[50],
           border: `1px solid ${colors.warning[200]}`,
-          borderRadius: borderRadius.lg,
-          marginBottom: spacing[6],
         }}>
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            gap: spacing[3],
+            gap: spacing[2],
           }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: colors.warning[600] }}>
-              <circle cx="12" cy="12" r="10"/>
-              <path d="M12 6v6m0 0v6"/>
-            </svg>
             <span style={{
-              fontSize: typography.fontSize.sm,
-              fontWeight: typography.fontWeight.medium,
-              color: colors.warning[800],
+              fontSize: typography.fontSize.lg,
+              color: colors.warning[600],
             }}>
-              No active time log. Please clock in first to manage tasks.
+              ⏰
+            </span>
+            <span style={{
+              fontSize: typography.fontSize.base,
+              color: colors.warning[700],
+              fontWeight: typography.fontWeight.medium,
+            }}>
+              Please clock in from the Attendance tab to interact with tasks
             </span>
           </div>
         </div>
@@ -227,63 +326,110 @@ const Tasks = () => {
                 flexDirection: 'column',
                 gap: spacing[2],
               }}>
-                {project.tasks.map((task) => (
-                  <label key={task._id} style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    padding: spacing[3],
-                    background: colors.gray[50],
-                    borderRadius: borderRadius.lg,
-                    border: `1px solid ${colors.gray[200]}`,
-                    cursor: currentTimeLog ? 'pointer' : 'not-allowed',
-                    opacity: currentTimeLog ? 1 : 0.6,
-                    transition: `all ${transitions.base}`,
-                    '&:hover': currentTimeLog ? {
-                      background: colors.gray[100],
-                      transform: 'translateY(-1px)',
-                      boxShadow: shadows.sm,
-                    } : {},
-                  }}>
-                    <input
-                      type="checkbox"
-                      checked={selectedTasks.includes(task._id)}
-                      onChange={() => handleTaskToggle(task._id)}
-                      disabled={!currentTimeLog}
-                      style={{
-                        width: '18px',
-                        height: '18px',
-                        marginRight: spacing[3],
-                        accentColor: colors.primary[600],
-                      }}
-                    />
-                    <div>
-                      <span style={{
-                        fontSize: typography.fontSize.sm,
-                        fontWeight: typography.fontWeight.medium,
-                        color: colors.gray[700],
+                {project.tasks.map((task) => {
+                  const taskStatus = taskStatuses[task._id] || 'Inactive';
+                  const isCompleted = task.isCompleted;
+                  const canComplete = task.workedOnBy && task.workedOnBy.includes(employeeId);
+                  const canUncomplete = task.completedBy === employeeId;
+                  
+                  return (
+                    <div key={task._id} style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: spacing[3],
+                      background: isCompleted ? colors.gray[100] : colors.gray[50],
+                      borderRadius: borderRadius.lg,
+                      border: `1px solid ${colors.gray[200]}`,
+                      opacity: isCompleted ? 0.7 : 1,
+                      transition: `all ${transitions.base}`,
+                    }}>
+                      {/* Left side - Task info and completion checkbox */}
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        flex: 1,
                       }}>
-                        {task.name || `Task ${task._id.slice(-6)}`}
-                      </span>
-                      {task.description && (
+                        <input
+                          type="checkbox"
+                          checked={isCompleted}
+                          onChange={() => handleTaskComplete(task._id, isCompleted)}
+                          disabled={!isWorking || !canComplete || (isCompleted && !canUncomplete)}
+                          style={{
+                            width: '18px',
+                            height: '18px',
+                            marginRight: spacing[3],
+                            accentColor: colors.primary[600],
+                            opacity: (!isWorking || isCompleted) ? 0.5 : 1,
+                            cursor: (!isWorking || !canComplete || (isCompleted && !canUncomplete)) ? 'not-allowed' : 'pointer',
+                          }}
+                        />
                         <div style={{
-                          fontSize: typography.fontSize.xs,
-                          color: colors.gray[500],
-                          marginTop: spacing[1],
+                          textDecoration: isCompleted ? 'line-through' : 'none',
+                          color: isCompleted ? colors.gray[500] : colors.gray[700],
                         }}>
-                          {task.description}
+                          <span style={{
+                            fontSize: typography.fontSize.sm,
+                            fontWeight: typography.fontWeight.medium,
+                          }}>
+                            {task.name || `Task ${task._id.slice(-6)}`}
+                          </span>
+                          {task.description && (
+                            <div style={{
+                              fontSize: typography.fontSize.xs,
+                              color: isCompleted ? colors.gray[400] : colors.gray[500],
+                              marginTop: spacing[1],
+                            }}>
+                              {task.description}
+                            </div>
+                          )}
+                          {isCompleted && (
+                            <div style={{
+                              fontSize: typography.fontSize.xs,
+                              color: colors.success[600],
+                              marginTop: spacing[1],
+                            }}>
+                              Completed {task.completedAt && new Date(task.completedAt).toLocaleDateString()}
+                            </div>
+                          )}
                         </div>
-                      )}
-                      {selectedTasks.includes(task._id) && (
-                        <span style={{
-                          ...createBadgeStyle('success'),
-                          marginLeft: spacing[2],
-                        }}>
-                          Selected
-                        </span>
-                      )}
+                      </div>
+
+                      {/* Right side - Status button and selection badge */}
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: spacing[2],
+                      }}>
+                        {/* Status Toggle Button */}
+                        <button
+                          onClick={() => handleStatusToggle(task._id)}
+                          disabled={!isWorking || isCompleted}
+                          style={{
+                            ...createButtonStyle(taskStatus === 'Active' ? 'success' : 'secondary', 'sm'),
+                            fontSize: typography.fontSize.xs,
+                            padding: `${spacing[1]} ${spacing[2]}`,
+                            minWidth: '60px',
+                            opacity: (!isWorking || isCompleted) ? 0.5 : 1,
+                            cursor: (!isWorking || isCompleted) ? 'not-allowed' : 'pointer',
+                          }}
+                        >
+                          {taskStatus}
+                        </button>
+
+                        {/* Selection Badge */}
+                        {selectedTasks.includes(task._id) && (
+                          <span style={{
+                            ...createBadgeStyle('info'),
+                            fontSize: typography.fontSize.xs,
+                          }}>
+                            Selected
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </label>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
