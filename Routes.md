@@ -49,7 +49,7 @@ This document provides an overview and detailed descriptions of all available AP
 
 * **Screenshot Routes (`/api/screenshots`)**: Manage screenshot retrieval, remote capture, and metadata storage.
     * `GET /api/screenshots`: Retrieves screenshots for a specific employee.
-    * `POST /api/screenshots/remote-take`: Initiates a remote screenshot capture.
+    * `POST /api/screenshots/remote-take`: Initiates a remote screenshot capture. (Through IP Address and port number)
     * `POST /api/screenshots/upload`: Uploads an existing screenshot file.
     * `POST /api/screenshots`: Saves screenshot metadata to the database.
     * `POST /api/screenshots/permission-denied`: Records when screenshot permission is denied.
