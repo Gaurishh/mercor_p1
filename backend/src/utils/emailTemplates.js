@@ -1,6 +1,6 @@
 const getVerificationEmail = (name, token) => {
-  const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
-  const verificationLink = `${BASE_URL}/verify-email/${token}`;
+  const WEB_URL = process.env.WEB_URL || 'http://localhost:3000';
+  const verificationLink = `${WEB_URL}/verify-email/${token}`;
   
   return `
     <!DOCTYPE html>
@@ -37,8 +37,8 @@ const getVerificationEmail = (name, token) => {
 };
 
 const getPasswordResetEmail = (name, token) => {
-  const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
-  const resetLink = `${BASE_URL}/reset-password/${token}`;
+  const WEB_URL = process.env.WEB_URL || 'http://localhost:3000';
+  const resetLink = `${WEB_URL}/reset-password/${token}`;
   
   return `
     <!DOCTYPE html>

@@ -4,8 +4,8 @@ import axios from 'axios';
 import { colors, typography, spacing, shadows, borderRadius, transitions, createButtonStyle, createCardStyle, createBadgeStyle } from './styles';
 import { startWork, stopWork, setElapsed } from './store';
 
-const API = 'http://localhost:4000/api/timelogs';
-const API_BASE = 'http://localhost:4000/api';
+const API = `${process.env.REACT_BACKEND_URL || 'http://localhost:4000'}/api/timelogs`;
+const API_BASE = `${process.env.REACT_BACKEND_URL || 'http://localhost:4000'}/api`;
 
 const Attendance = ({ isActive }) => {
   const dispatch = useDispatch();
@@ -34,10 +34,10 @@ const Attendance = ({ isActive }) => {
 
   const fetchTimeLogs = useCallback(async () => {
     try {
-      setLoading(true);
-      console.log('Fetching time logs for employeeId:', employeeId);
-      const res = await axios.get(`${API}?employeeId=${employeeId}`);
-      console.log('Time logs response:', res.data);
+              setLoading(true);
+        // console.log('Fetching time logs for employeeId:', employeeId);
+        const res = await axios.get(`${API}?employeeId=${employeeId}`);
+        // console.log('Time logs response:', res.data);
       setTimeLogs(res.data);
     } catch (err) {
       console.error('Failed to fetch timelogs:', err);
@@ -49,12 +49,12 @@ const Attendance = ({ isActive }) => {
   // Automatic screenshot function - called every 60 seconds
   const handleAutomaticScreenshot = useCallback(async () => {
     if (!window.electronAPI) {
-      console.log('Electron API not available for automatic screenshot');
+      // console.log('Electron API not available for automatic screenshot');
       return;
     }
     
     try {
-      console.log('Taking automatic screenshot...');
+      // console.log('Taking automatic screenshot...');
       
       // 1. Take screenshot locally
       const result = await window.electronAPI.takeScreenshot();
@@ -140,7 +140,7 @@ const Attendance = ({ isActive }) => {
   useEffect(() => {
     if (isActive && !prevIsActive) {
       // Employee just became active, trigger loading
-      console.log('Employee became active, triggering loading...');
+      // console.log('Employee became active, triggering loading...');
       setLoading(true);
       
       // Add a small delay to ensure loading state is visible
@@ -203,7 +203,7 @@ const Attendance = ({ isActive }) => {
   };
 
   const groupTimeLogsByDate = (logs) => {
-    console.log('Grouping time logs:', logs);
+    // console.log('Grouping time logs:', logs);
     const groups = {};
     
     logs.forEach(log => {
@@ -236,7 +236,7 @@ const Attendance = ({ isActive }) => {
       }
     });
     
-    console.log('Grouped logs:', groups);
+    // console.log('Grouped logs:', groups);
     
     // Sort logs within each group by clock in time (newest first)
     Object.values(groups).forEach(group => {

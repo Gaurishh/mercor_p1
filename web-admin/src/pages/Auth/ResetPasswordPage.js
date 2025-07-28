@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
-const API_BASE = 'http://localhost:4000/api/auth';
+const BACKEND_URL = process.env.REACT_BACKEND_URL || 'http://localhost:4000';
+const API_BASE = `${BACKEND_URL}/api/auth`;
 
 const ResetPasswordPage = () => {
   const { token } = useParams();

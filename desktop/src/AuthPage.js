@@ -4,7 +4,7 @@ import axios from 'axios';
 import { colors, typography, spacing, shadows, borderRadius, transitions, createButtonStyle, createInputStyle } from './styles';
 import { setAuth } from './store';
 
-const API_BASE = 'http://localhost:4000/api/auth';
+const API_BASE = `${process.env.REACT_BACKEND_URL || 'http://localhost:4000'}/api/auth`;
 
 const AuthPage = () => {
   const dispatch = useDispatch();
@@ -15,6 +15,11 @@ const AuthPage = () => {
   });
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  
+  // Forgot password state
+  const [forgotPasswordMode, setForgotPasswordMode] = useState(false);
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
+  const [emailSent, setEmailSent] = useState(false);
 
   const handleSignInChange = (e) => {
     setSignInForm({ ...signInForm, [e.target.name]: e.target.value });
@@ -29,23 +34,23 @@ const AuthPage = () => {
     e.preventDefault();
     setLoading(true);
     setMessage('');
-    console.log('Attempting sign in with:', signInForm);
+    // console.log('Attempting sign in with:', signInForm);
     
     try {
-      console.log('Making request to:', `${API_BASE}/signin`);
+      // console.log('Making request to:', `${API_BASE}/signin`);
       
       // Add timeout to prevent hanging
       const res = await axios.post(`${API_BASE}/signin`, signInForm, {
         timeout: 10000 // 10 second timeout
       });
       
-      console.log('Sign in response:', res.data);
+      // console.log('Sign in response:', res.data);
       
       const { isAdmin, _id } = res.data.employee;
-      console.log('Dispatching setAuth with:', { isAdmin, employeeId: _id });
+      // console.log('Dispatching setAuth with:', { isAdmin, employeeId: _id });
       dispatch(setAuth({ isAdmin, employeeId: _id }));
       
-      console.log('Sign in successful');
+      // console.log('Sign in successful');
       
       // Add a small delay to prevent rapid state changes
       setTimeout(() => {
@@ -58,7 +63,7 @@ const AuthPage = () => {
       if (err.code === 'ECONNABORTED') {
         setMessage('Request timed out. Please check if the backend server is running.');
       } else if (err.code === 'ERR_NETWORK') {
-        setMessage('Network error. Please check if the backend server is running on http://localhost:4000');
+        setMessage(`Network error. Please check if the backend server is running on ${process.env.REACT_BACKEND_URL || 'http://localhost:4000'}`);
       } else {
         setMessage(err.response?.data?.error || 'Sign in failed');
       }
@@ -87,6 +92,248 @@ const AuthPage = () => {
     }
   };
 
+  // Forgot password handlers
+  const handleForgotPasswordSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setMessage('');
+    
+    try {
+      await axios.post(`${API_BASE}/forgot-password`, { email: forgotPasswordEmail });
+      setEmailSent(true);
+      setMessage('');
+    } catch (err) {
+      console.error('Forgot password error:', err);
+      // Always show success message for security (same as web admin)
+      setEmailSent(true);
+      setMessage('');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBackToSignIn = () => {
+    setForgotPasswordMode(false);
+    setForgotPasswordEmail('');
+    setEmailSent(false);
+    setMessage('');
+  };
+
+  // Forgot password success view
+  if (forgotPasswordMode && emailSent) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        maxWidth: '100vw',
+        width: '100%',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        background: `linear-gradient(135deg, ${colors.primary[50]} 0%, ${colors.gray[50]} 100%)`,
+        padding: spacing[4],
+        paddingTop: 'calc(16px)',
+        fontFamily: typography.fontFamily.primary,
+        overflow: 'hidden',
+      }}>
+        <div style={{
+          backgroundColor: colors.background.primary,
+          borderRadius: borderRadius['2xl'],
+          boxShadow: shadows['2xl'],
+          padding: spacing[8],
+          width: '100%',
+          maxWidth: '400px',
+          border: `1px solid ${colors.gray[200]}`,
+          textAlign: 'center',
+        }}>
+          {/* Success Icon */}
+          <div style={{
+            width: 64,
+            height: 64,
+            background: `linear-gradient(135deg, ${colors.success[500]} 0%, ${colors.success[600]} 100%)`,
+            borderRadius: borderRadius.xl,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto',
+            marginBottom: spacing[6],
+            boxShadow: shadows.lg,
+          }}>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+              <polyline points="22,4 12,14.01 9,11.01"></polyline>
+            </svg>
+          </div>
+
+          {/* Success Message */}
+          <h2 style={{
+            fontSize: typography.fontSize.xl,
+            fontWeight: typography.fontWeight.bold,
+            color: colors.gray[900],
+            margin: 0,
+            marginBottom: spacing[4],
+          }}>
+            Email Sent Successfully
+          </h2>
+
+          <p style={{
+            fontSize: typography.fontSize.base,
+            color: colors.gray[600],
+            margin: 0,
+            marginBottom: spacing[6],
+            lineHeight: 1.6,
+          }}>
+            If an account with that email exists, we've sent you a password reset link. Please check your email and click the link to reset your password.
+          </p>
+
+          <button
+            onClick={handleBackToSignIn}
+            style={{
+              ...createButtonStyle('primary', 'md'),
+              width: '100%',
+            }}
+          >
+            Back to Sign In
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Forgot password form view
+  if (forgotPasswordMode) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        maxWidth: '100vw',
+        width: '100%',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        background: `linear-gradient(135deg, ${colors.primary[50]} 0%, ${colors.gray[50]} 100%)`,
+        padding: spacing[4],
+        paddingTop: 'calc(16px)',
+        fontFamily: typography.fontFamily.primary,
+        overflow: 'hidden',
+      }}>
+        <div style={{
+          backgroundColor: colors.background.primary,
+          borderRadius: borderRadius['2xl'],
+          boxShadow: shadows['2xl'],
+          padding: spacing[8],
+          width: '100%',
+          maxWidth: '400px',
+          border: `1px solid ${colors.gray[200]}`,
+        }}>
+          {/* Header */}
+          <div style={{ textAlign: 'center', marginBottom: spacing[6] }}>
+            <div style={{
+              width: 56,
+              height: 56,
+              background: `linear-gradient(135deg, ${colors.primary[500]} 0%, ${colors.primary[600]} 100%)`,
+              borderRadius: borderRadius.xl,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto',
+              marginBottom: spacing[4],
+              boxShadow: shadows.lg,
+            }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                <path d="M15 7h3a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-3"></path>
+                <polyline points="10,17 15,12 10,7"></polyline>
+                <line x1="15" y1="12" x2="3" y2="12"></line>
+              </svg>
+            </div>
+            <h1 style={{
+              fontSize: typography.fontSize['2xl'],
+              fontWeight: typography.fontWeight.bold,
+              color: colors.gray[900],
+              margin: 0,
+              marginBottom: spacing[2],
+              letterSpacing: '-0.025em',
+            }}>
+              Forgot Password
+            </h1>
+            <p style={{
+              fontSize: typography.fontSize.sm,
+              color: colors.gray[600],
+              margin: 0,
+            }}>
+              Enter your email address to receive a password reset link
+            </p>
+          </div>
+
+          {/* Message Display */}
+          {message && (
+            <div style={{
+              padding: spacing[3],
+              borderRadius: borderRadius.lg,
+              marginBottom: spacing[4],
+              background: colors.error[50],
+              border: `1px solid ${colors.error[200]}`,
+              color: colors.error[800],
+              fontSize: typography.fontSize.xs,
+              textAlign: 'center',
+            }}>
+              {message}
+            </div>
+          )}
+
+          {/* Forgot Password Form */}
+          <form onSubmit={handleForgotPasswordSubmit}>
+            <div style={{ marginBottom: spacing[6] }}>
+              <label style={{
+                display: 'block',
+                marginBottom: spacing[2],
+                color: colors.gray[700],
+                fontSize: typography.fontSize.xs,
+                fontWeight: typography.fontWeight.medium,
+              }}>
+                Email Address
+              </label>
+              <input
+                type="email"
+                value={forgotPasswordEmail}
+                onChange={(e) => setForgotPasswordEmail(e.target.value)}
+                required
+                style={createInputStyle()}
+                placeholder="Enter your email address"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                ...createButtonStyle('primary', 'md'),
+                width: '100%',
+                marginBottom: spacing[4],
+              }}
+            >
+              {loading ? 'Sending...' : 'Send Reset Link'}
+            </button>
+            <div style={{ textAlign: 'center' }}>
+              <button
+                type="button"
+                onClick={handleBackToSignIn}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: colors.primary[600],
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  fontSize: typography.fontSize.xs,
+                  fontWeight: typography.fontWeight.medium,
+                }}
+              >
+                Back to Sign In
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{
       minHeight: '100vh',
@@ -111,7 +358,7 @@ const AuthPage = () => {
         border: `1px solid ${colors.gray[200]}`,
       }}>
         {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: spacing[6] }}>
+        <div style={{ textAlign: 'center', marginBottom: spacing[8] }}>
           <div style={{
             width: 56,
             height: 56,
@@ -131,7 +378,7 @@ const AuthPage = () => {
             fontWeight: typography.fontWeight.bold,
             color: colors.gray[900],
             margin: 0,
-            marginBottom: spacing[2],
+            marginBottom: spacing[3],
             letterSpacing: '-0.025em',
           }}>
             Welcome to Inciteful
@@ -140,6 +387,7 @@ const AuthPage = () => {
             fontSize: typography.fontSize.sm,
             color: colors.gray[600],
             margin: 0,
+            marginBottom: spacing[4],
           }}>
             Sign in to your account or create a new one
           </p>
@@ -230,7 +478,7 @@ const AuthPage = () => {
                 placeholder="Enter your email address"
               />
             </div>
-            <div style={{ marginBottom: spacing[6] }}>
+            <div style={{ marginBottom: spacing[4] }}>
               <label style={{
                 display: 'block',
                 marginBottom: spacing[2],
@@ -261,6 +509,23 @@ const AuthPage = () => {
             >
               {loading ? 'Signing In...' : 'Sign In'}
             </button>
+            <div style={{ textAlign: 'center', marginBottom: spacing[4] }}>
+              <button
+                type="button"
+                onClick={() => setForgotPasswordMode(true)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: colors.primary[600],
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  fontSize: typography.fontSize.xs,
+                  fontWeight: typography.fontWeight.medium,
+                }}
+              >
+                Forgot Password?
+              </button>
+            </div>
             <div style={{ textAlign: 'center' }}>
               <span style={{ color: colors.gray[600], fontSize: typography.fontSize.xs }}>
                 Don't have an account?{' '}

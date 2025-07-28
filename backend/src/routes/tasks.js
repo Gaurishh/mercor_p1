@@ -19,7 +19,7 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const { projectId, name, description, employeeIds } = req.body;
-    console.log('POST /api/tasks body:', req.body); // Log incoming request
+    // console.log('POST /api/tasks body:', req.body); // Log incoming request
     if (!projectId || !name || !description) {
       console.error('Missing required fields:', req.body);
       return res.status(400).json({ error: 'Missing required fields', body: req.body });
@@ -33,7 +33,7 @@ router.post('/', async (req, res) => {
     const task = new Task({ projectId: project._id, name, description, employeeIds: employeeIds || [] });
     await task.save();
     await Project.findByIdAndUpdate(project._id, { $push: { taskIds: task._id } });
-    console.log('Task created:', task);
+    // console.log('Task created:', task);
     res.status(201).json(task);
   } catch (err) {
     console.error('Error creating task:', err, req.body);

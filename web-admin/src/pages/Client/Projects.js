@@ -4,9 +4,11 @@ import { colors, typography, spacing, shadows, borderRadius, transitions, create
 
 console.log('Projects component rendered');
 
-const PROJECTS_API = 'http://localhost:4000/api/projects';
-const TASKS_API = 'http://localhost:4000/api/tasks';
-const EMPLOYEES_API = 'http://localhost:4000/api/employees';
+const BACKEND_URL = process.env.REACT_BACKEND_URL || 'http://localhost:4000';
+
+const PROJECTS_API = `${BACKEND_URL}/api/projects`;
+const TASKS_API = `${BACKEND_URL}/api/tasks`;
+const EMPLOYEES_API = `${BACKEND_URL}/api/employees`;
 
 // Move ModalWrapper outside Projects
 const ModalWrapper = ({ isOpen, onClose, children }) => {

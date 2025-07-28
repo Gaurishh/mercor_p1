@@ -3,8 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { colors, typography, spacing, shadows, borderRadius, transitions, createButtonStyle } from '../../styles';
 
-const API_BASE = 'http://localhost:4000/api/employees';
-const SCREENSHOT_API_BASE = 'http://localhost:4000/api/screenshots';
+const BACKEND_URL = process.env.REACT_BACKEND_URL || 'http://localhost:4000';
+const API_BASE = `${BACKEND_URL}/api/employees`;
+const SCREENSHOT_API_BASE = `${BACKEND_URL}/api/screenshots`;
 
 const EmployeeDetailPage = () => {
   const { employeeId } = useParams();
@@ -476,21 +477,44 @@ const EmployeeDetailPage = () => {
                     }}>
                       IP ADDRESS
                     </label>
+                    <div style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: spacing[1],
+                    }}>
+                      <span style={{
+                        fontSize: typography.fontSize.base,
+                        color: colors.gray[900],
+                      }}>
+                        {employee.ipAddress || 'Not available'}
+                      </span>
+                      {employee.lastLoginAt && (
+                        <span style={{
+                          fontSize: typography.fontSize.sm,
+                          color: colors.gray[500],
+                        }}>
+                          Last updated: {new Date(employee.lastLoginAt).toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{
+                      fontSize: typography.fontSize.sm,
+                      fontWeight: typography.fontWeight.medium,
+                      color: colors.gray[700],
+                      marginBottom: spacing[1],
+                      display: 'block',
+                    }}>
+                      MAC ADDRESS
+                    </label>
                     <span style={{
                       fontSize: typography.fontSize.base,
                       color: colors.gray[900],
                     }}>
-                      {employee.ipAddress || 'Not available'}
+                      {employee.macAddress || 'Not available'}
                     </span>
-                    {employee.lastLoginAt && (
-                      <span style={{
-                        fontSize: typography.fontSize.sm,
-                        color: colors.gray[500],
-                        marginLeft: spacing[2],
-                      }}>
-                        (Last updated: {new Date(employee.lastLoginAt).toLocaleString()})
-                      </span>
-                    )}
                   </div>
                 </div>
 

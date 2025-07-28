@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { colors, typography, spacing, shadows, borderRadius, transitions, createButtonStyle, createInputStyle } from '../../styles';
 
-const API_BASE = 'http://localhost:4000/api/auth';
+const BACKEND_URL = process.env.REACT_BACKEND_URL || 'http://localhost:4000';
+const API_BASE = `${BACKEND_URL}/api/auth`;
 
 const AuthPage = () => {
   const [activeTab, setActiveTab] = useState('signin');

@@ -11,6 +11,7 @@ const EmployeeSchema = new mongoose.Schema({
   isAdmin: { type: Boolean, default: false },
   emailVerified: { type: Boolean, default: false },
   ipAddress: { type: String, default: null }, // Store employee's current IP
+  macAddress: { type: String, default: null }, // Store employee's MAC address
   lastLoginAt: { type: Date, default: null } // Track when IP was last updated
 });
 

@@ -144,7 +144,7 @@ const Sidebar = ({ onNavigate, activeView, lightMode = false }) => {
           Desktop App
         </h4>
         <a 
-          href="https://github.com/Gaurishh/mercor_p1-releases/releases/latest/download/Inciteful-Desktop-v1.0.0.zip" 
+          href="https://github.com/Gaurishh/mercor_p1/releases/download/v2.0.0/Inciteful-Desktop-v2.0.0.rar" 
           download 
           style={{
             ...createButtonStyle('success', 'md'),

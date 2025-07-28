@@ -31,8 +31,8 @@ class EmployeeScreenshotService {
       // Use employee's IP address instead of localhost
       const targetURL = `http://${employee.ipAddress}:${this.EMPLOYEE_APP_PORT}/screenshot`;
       
-      console.log(`Taking screenshot from ${targetURL} for employee: ${employeeId}`);
-      console.log(`Employee IP: ${employee.ipAddress}, Port: ${this.EMPLOYEE_APP_PORT}`);
+      // console.log(`Taking screenshot from ${targetURL} for employee: ${employeeId}`);
+      // console.log(`Employee IP: ${employee.ipAddress}, Port: ${this.EMPLOYEE_APP_PORT}`);
       
       // Take screenshot via HTTP request
       const response = await axios.post(targetURL, {

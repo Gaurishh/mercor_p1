@@ -13,7 +13,8 @@ import { store } from './store';
 import { setAuth, clearAuth, stopWork } from './store';
 
 // API Configuration
-const API_BASE = 'http://localhost:4000/api';
+const API_BASE = `${process.env.REACT_BACKEND_URL || 'http://localhost:4000'}/api`;
+const ELECTRON_HTTP_URL = process.env.ELECTRON_HTTP_URL || 'http://localhost:3003';
 
 // Error Boundary Component
 class ErrorBoundary extends React.Component {
@@ -318,34 +319,71 @@ const App = () => {
   const [toast, setToast] = useState({ message: '', isVisible: false });
 
   // Function to show toast
-  const showToast = (message) => {
-    console.log('showToast called with message:', message);
+  const showToast = (message, duration = 3000) => {
+    // console.log('showToast called with message:', message, 'duration:', duration);
     setToast({ message, isVisible: true });
     setTimeout(() => {
-      console.log('Auto-dismissing toast');
+      // console.log('Auto-dismissing toast');
       setToast({ message: '', isVisible: false });
+    }, duration);
+  };
+
+  // Function to show sequential screenshot toasts
+  const showScreenshotToastSequence = (startMessage, successMessage, errorMessage = null) => {
+    // console.log('Starting screenshot toast sequence');
+    
+    // Show start message for 3 seconds
+    showToast(startMessage, 3000);
+    
+    // After 3 seconds, show success message for another 3 seconds
+    setTimeout(() => {
+      if (errorMessage) {
+        // If there was an error, show error message instead
+        showToast(errorMessage, 3000);
+      } else {
+        // Show success message
+        showToast(successMessage, 3000);
+      }
     }, 3000);
   };
 
   // Listen for screenshot toast events
   useEffect(() => {
-    console.log('Setting up screenshot toast listener...');
-    console.log('window.electronAPI available:', !!window.electronAPI);
-    console.log('window.electronAPI.onScreenshotToast available:', !!window.electronAPI?.onScreenshotToast);
+    // console.log('Setting up screenshot toast listener...');
+    // console.log('window.electronAPI available:', !!window.electronAPI);
+    // console.log('window.electronAPI.onScreenshotToast available:', !!window.electronAPI?.onScreenshotToast);
     
     if (window.electronAPI && window.electronAPI.onScreenshotToast) {
       const handleScreenshotToast = (event, toastData) => {
-        console.log('Received screenshot toast event:', toastData);
-        showToast(toastData.message);
+        // console.log('Received screenshot toast event:', toastData);
+        
+        // Handle different toast types
+        if (toastData.type === 'start') {
+          // For start messages, initiate the sequence
+          const isRemote = toastData.message.includes('remote') || toastData.message.includes('Remote');
+          const startMessage = toastData.message;
+          const successMessage = isRemote ? 'Remote screenshot taken successfully!' : 'Screenshot saved successfully!';
+          
+          showScreenshotToastSequence(startMessage, successMessage);
+        } else if (toastData.type === 'success') {
+          // For direct success messages (fallback)
+          showToast(toastData.message, 3000);
+        } else if (toastData.type === 'error') {
+          // For error messages, show immediately
+          showToast(toastData.message, 3000);
+        } else {
+          // Fallback for any other message type
+          showToast(toastData.message, 3000);
+        }
       };
       
       window.electronAPI.onScreenshotToast(handleScreenshotToast);
-      console.log('Screenshot toast listener set up successfully');
+      // console.log('Screenshot toast listener set up successfully');
       
       return () => {
         if (window.electronAPI.removeScreenshotToastListener) {
           window.electronAPI.removeScreenshotToastListener(handleScreenshotToast);
-          console.log('Screenshot toast listener cleaned up');
+          // console.log('Screenshot toast listener cleaned up');
         }
       };
     } else {
@@ -405,7 +443,7 @@ const App = () => {
         const os = window.require('os');
         const interfaces = os.networkInterfaces();
         
-        console.log('Available network interfaces:', Object.keys(interfaces));
+        // console.log('Available network interfaces:', Object.keys(interfaces));
         
         // Priority order: Ethernet, WiFi, then others
         const priorityOrder = ['Ethernet', 'Wi-Fi', 'WiFi', 'WLAN', 'Local Area Connection'];
@@ -415,7 +453,7 @@ const App = () => {
           if (interfaces[priorityName]) {
             for (const iface of interfaces[priorityName]) {
               if (iface.family === 'IPv4' && !iface.internal) {
-                console.log(`Found IP on priority interface ${priorityName}:`, iface.address);
+                // console.log(`Found IP on priority interface ${priorityName}:`, iface.address);
                 return iface.address;
               }
             }
@@ -427,18 +465,18 @@ const App = () => {
           for (const iface of interfaces[name]) {
             // Skip internal and non-IPv4 addresses
             if (iface.family === 'IPv4' && !iface.internal) {
-              console.log(`Found IP on interface ${name}:`, iface.address);
+              // console.log(`Found IP on interface ${name}:`, iface.address);
               return iface.address;
             }
           }
         }
         
-        console.log('No suitable local IP found, falling back to localhost');
+        // console.log('No suitable local IP found, falling back to localhost');
       }
       
       // Method 2: Try to get local IP via HTTP request to our own server
       try {
-        const response = await fetch('http://localhost:3003/health');
+        const response = await fetch(`${ELECTRON_HTTP_URL}/health`);
         const data = await response.json();
         if (data.ipAddress && data.ipAddress !== 'localhost') {
           console.log('Got IP from health endpoint:', data.ipAddress);
@@ -457,21 +495,89 @@ const App = () => {
     }
   };
 
-  // Update IP address when employee logs in
+  // Function to get MAC address
+  const getMacAddress = async () => {
+    try {
+      // console.log('Starting MAC address detection...');
+      
+      // Method 1: Use Electron API (main process)
+      if (window.electronAPI && window.electronAPI.getMacAddress) {
+        // console.log('Using Electron API for MAC address detection...');
+        const result = await window.electronAPI.getMacAddress();
+        
+        if (result.success) {
+          // console.log('MAC address found via Electron API:', result.macAddress);
+          return result.macAddress;
+        } else {
+          console.log('MAC address not found via Electron API:', result.error);
+        }
+      } else {
+        console.log('Electron API not available for MAC detection');
+      }
+      
+      // Method 2: Try to get MAC via HTTP request to our own server
+      try {
+        console.log('Trying health endpoint for MAC address...');
+        const response = await fetch(`${ELECTRON_HTTP_URL}/health`);
+        const data = await response.json();
+        if (data.macAddress) {
+          console.log('Got MAC from health endpoint:', data.macAddress);
+          return data.macAddress;
+        }
+      } catch (healthError) {
+        console.log('Health endpoint not available for MAC:', healthError.message);
+      }
+      
+      // Method 3: Fallback - return null if no MAC found
+      console.log('No MAC address available');
+      return null;
+    } catch (error) {
+      console.error('Failed to get MAC address:', error);
+      return null; // Fallback
+    }
+  };
+
+  // Update IP address and MAC address when employee logs in
   const updateEmployeeIP = async (employeeId) => {
     try {
-      const ipAddress = await getLocalIPAddress();
+      // console.log('Starting IP and MAC address update for employee:', employeeId);
       
-      const response = await axios.post(`${API_BASE}/employees/update-ip`, {
+      const [ipAddress, macAddress] = await Promise.all([
+        getLocalIPAddress(),
+        getMacAddress()
+      ]);
+      
+      // console.log('Detected IP address:', ipAddress);
+      // console.log('Detected MAC address:', macAddress);
+      
+      const requestData = {
         employeeId: employeeId,
         ipAddress: ipAddress
-      });
+      };
+      
+      // Add MAC address if available
+      if (macAddress) {
+        requestData.macAddress = macAddress;
+        // console.log('Adding MAC address to request:', macAddress);
+      } else {
+        console.log('No MAC address available, skipping MAC update');
+      }
+      
+      // console.log('Sending request data:', requestData);
+      
+      const response = await axios.post(`${API_BASE}/employees/update-ip`, requestData);
+      
+      // console.log('Server response:', response.data);
       
       if (response.data.success) {
         console.log('IP address updated successfully:', ipAddress);
+        if (macAddress) {
+          console.log('MAC address updated successfully:', macAddress);
+        }
       }
     } catch (error) {
-      console.error('Failed to update IP address:', error);
+      console.error('Failed to update IP address and MAC:', error);
+      console.error('Error details:', error.response?.data || error.message);
     }
   };
 
@@ -500,8 +606,8 @@ const App = () => {
   // Handle confirmation modal proceed
   const handleConfirmProceed = async () => {
     try {
-      console.log('Starting deactivation process...');
-      console.log('Current timer state:', { isWorking, timeLogId });
+      // console.log('Starting deactivation process...');
+      // console.log('Current timer state:', { isWorking, timeLogId });
       
       const response = await axios.patch(`${API_BASE}/employees/toggle-self-status`, {
         employeeId: employeeId
@@ -509,8 +615,8 @@ const App = () => {
       
       if (response.data.success) {
         const newIsActive = response.data.employee.isActive;
-        console.log('Status toggle response:', response.data);
-        console.log('New active status:', newIsActive);
+        // console.log('Status toggle response:', response.data);
+        // console.log('New active status:', newIsActive);
         
         setIsActive(newIsActive);
         setEmployeeData(response.data.employee);
@@ -544,16 +650,16 @@ const App = () => {
   // Automatic clock-out function (for use in event listeners)
   const performAutomaticClockOut = async () => {
     try {
-      console.log('performAutomaticClockOut called');
-      console.log('Timer state in performAutomaticClockOut:', { isWorking, timeLogId });
+      // console.log('performAutomaticClockOut called');
+      // console.log('Timer state in performAutomaticClockOut:', { isWorking, timeLogId });
       
       if (isWorking && timeLogId) {
-        console.log('Performing automatic clock-out from event listener...');
-        console.log('Making API call to:', `http://localhost:4000/api/timelogs/${timeLogId}/clockout`);
+        // console.log('Performing automatic clock-out from event listener...');
+        // console.log('Making API call to:', `${API_BASE}/timelogs/${timeLogId}/clockout`);
         
         // Call the clock-out API
-        const response = await axios.patch(`http://localhost:4000/api/timelogs/${timeLogId}/clockout`);
-        console.log('Clock-out API response:', response.data);
+        const response = await axios.patch(`${API_BASE}/timelogs/${timeLogId}/clockout`);
+        // console.log('Clock-out API response:', response.data);
         
         // Update Redux state to stop work
         dispatch(stopWork());
@@ -598,7 +704,7 @@ const App = () => {
       }
       
       // Also set via HTTP endpoint as backup
-      fetch(`http://localhost:3003/set-employee`, {
+      fetch(`${ELECTRON_HTTP_URL}/set-employee`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

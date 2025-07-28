@@ -10,6 +10,8 @@ let httpServer;
 let currentEmployeeId;
 let isClockOutRequested = false;
 
+const DESKTOP_URL = process.env.REACT_DESKTOP_URL;
+
 // Function to perform automatic clock-out
 async function performAutomaticClockOut() {
   if (isClockOutRequested) return; // Prevent multiple calls
@@ -17,19 +19,19 @@ async function performAutomaticClockOut() {
   
   try {
     if (currentEmployeeId) {
-      console.log('Performing automatic clock-out for employee:', currentEmployeeId);
+      // console.log('Performing automatic clock-out for employee:', currentEmployeeId);
       
       // Get active time log for the employee
       const axios = require('axios');
-      const timeLogsResponse = await axios.get(`http://localhost:4000/api/timelogs?employeeId=${currentEmployeeId}`);
+      const timeLogsResponse = await axios.get(`${REACT_BACKEND_URL}/api/timelogs?employeeId=${currentEmployeeId}`);
       const activeLog = timeLogsResponse.data.find(log => !log.clockOut);
       
       if (activeLog) {
-        console.log('Found active time log, performing clock-out...');
-        await axios.patch(`http://localhost:4000/api/timelogs/${activeLog._id}/clockout`);
-        console.log('Automatic clock-out completed successfully');
+        // console.log('Found active time log, performing clock-out...');
+        await axios.patch(`${process.env.REACT_BACKEND_URL}/api/timelogs/${activeLog._id}/clockout`);
+        // console.log('Automatic clock-out completed successfully');
       } else {
-        console.log('No active time log found for automatic clock-out');
+        // console.log('No active time log found for automatic clock-out');
       }
     }
   } catch (error) {
@@ -39,14 +41,14 @@ async function performAutomaticClockOut() {
 
 function createWindow() {
   const preloadPath = path.resolve(__dirname, 'preload.js');
-  console.log('Preload script path:', preloadPath);
-  console.log('Preload script exists:', fs.existsSync(preloadPath));
-  console.log('Preload script content length:', fs.statSync(preloadPath).size, 'bytes');
+  // console.log('Preload script path:', preloadPath);
+  // console.log('Preload script exists:', fs.existsSync(preloadPath));
+  // console.log('Preload script content length:', fs.statSync(preloadPath).size, 'bytes');
   
   // Read and log the first few lines of the preload script
   try {
     const preloadContent = fs.readFileSync(preloadPath, 'utf8');
-    console.log('Preload script first 100 chars:', preloadContent.substring(0, 100));
+    // console.log('Preload script first 100 chars:', preloadContent.substring(0, 100));
   } catch (error) {
     console.error('Error reading preload script:', error);
   }
@@ -85,12 +87,12 @@ function createWindow() {
   
   // Log when preload script starts loading
   win.webContents.on('did-start-loading', () => {
-    console.log('Page started loading, preload script should execute soon...');
+    // console.log('Page started loading, preload script should execute soon...');
   });
   
   // Log when preload script finishes loading
   win.webContents.on('did-finish-load', () => {
-    console.log('Page finished loading, checking if preload script executed...');
+    // console.log('Page finished loading, checking if preload script executed...');
     win.webContents.executeJavaScript(`
       console.log('=== RENDERER PROCESS CHECK ===');
       console.log('window.electronAPI available:', !!window.electronAPI);
@@ -101,24 +103,35 @@ function createWindow() {
   });
 
   // Wait for React dev server to be ready
-  // ... existing code ...
-
-  // Wait for React dev server to be ready
   const loadURL = async () => {
     try {
-      console.log('About to load React app...');
+      // console.log('About to load React app...');
       
-      // Always try built files first in packaged app
-      const indexPath = path.join(__dirname, 'build', 'index.html');
-      console.log('Loading from built files:', indexPath);
-      console.log('File exists:', fs.existsSync(indexPath));
+      // Check if we're in development mode
+      const isDevelopment = process.env.NODE_ENV === 'development' || !fs.existsSync(path.join(__dirname, 'build', 'index.html'));
       
-      if (!fs.existsSync(indexPath)) {
-        throw new Error(`Build file not found: ${indexPath}`);
+      if (isDevelopment) {
+        try {
+          // console.log('About to load React app...');
+          await win.loadURL(DESKTOP_URL);
+          // console.log('Successfully loaded React app');
+        } catch (error) {
+          // console.log('React server not ready yet, retrying in 2 seconds...');
+          setTimeout(loadURL, 2000);
+        }
+      } else {
+        // Production mode - load from built files
+        const indexPath = path.join(__dirname, 'build', 'index.html');
+        // console.log('Production mode, loading from built files:', indexPath);
+        // console.log('File exists:', fs.existsSync(indexPath));
+        
+        if (!fs.existsSync(indexPath)) {
+          throw new Error(`Build file not found: ${indexPath}`);
+        }
+        
+        await win.loadFile(indexPath);
+        // console.log('Successfully loaded React app from built files');
       }
-      
-      await win.loadFile(indexPath);
-      console.log('Successfully loaded React app');
       
       // Add error handling for page load
       win.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
@@ -126,7 +139,7 @@ function createWindow() {
       });
       
       win.webContents.on('did-finish-load', () => {
-        console.log('Page finished loading successfully');
+        // console.log('Page finished loading successfully');
         // Check if React app is working
         win.webContents.executeJavaScript(`
           console.log('Checking React app...');
@@ -165,8 +178,6 @@ function createWindow() {
     }
   };
 
-  // ... existing code ...
-
   loadURL();
   
   // Remove the default menu
@@ -185,8 +196,8 @@ function createWindow() {
   win.webContents.on('dom-ready', () => {
     win.webContents.executeJavaScript(`
       // Add CSS to make title bar draggable
-      const style = document.createElement('style');
-      style.textContent = \`
+      const dragStyle = document.createElement('style');
+      dragStyle.textContent = \`
         body {
           -webkit-app-region: drag;
         }
@@ -194,7 +205,7 @@ function createWindow() {
           -webkit-app-region: no-drag;
         }
       \`;
-      document.head.appendChild(style);
+      document.head.appendChild(dragStyle);
     `);
   });
 }
@@ -280,7 +291,7 @@ function createHttpServer() {
               return;
             }
             
-            console.log(`Remote screenshot request for employee: ${employeeId}`);
+            // console.log(`Remote screenshot request for employee: ${employeeId}`);
             
             // Take screenshot using existing functionality
             const result = await takeScreenshotForEmployee(employeeId, timeLogId, adminRequest);
@@ -309,7 +320,7 @@ function createHttpServer() {
           try {
             const { employeeId } = JSON.parse(body);
             currentEmployeeId = employeeId;
-            console.log(`Employee ID set to: ${employeeId}`);
+            // console.log(`Employee ID set to: ${employeeId}`);
             
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({
@@ -344,13 +355,22 @@ function createHttpServer() {
   });
   
   httpServer.listen(port, () => {
-    console.log(`Electron HTTP server running on port ${port}`);
+    // console.log(`Electron HTTP server running on port ${port}`);
   });
 }
 
 // Function to take screenshot for a specific employee
 async function takeScreenshotForEmployee(employeeId, timeLogId = null, adminRequest = false) {
   try {
+    // Emit toast start event for remote screenshots
+    if (mainWindow) {
+      // console.log('Emitting remote screenshot start toast event');
+      mainWindow.webContents.send('screenshot-toast', { 
+        type: 'start', 
+        message: 'Taking remote screenshot...' 
+      });
+    }
+
     // Ensure screenshots directory exists
     const screenshotsDir = path.join(__dirname, 'screenshots');
     if (!fs.existsSync(screenshotsDir)) {
@@ -364,6 +384,14 @@ async function takeScreenshotForEmployee(employeeId, timeLogId = null, adminRequ
     });
 
     if (sources.length === 0) {
+      // Emit error toast
+      if (mainWindow) {
+        // console.log('Emitting error toast: No displays found (remote)');
+        mainWindow.webContents.send('screenshot-toast', { 
+          type: 'error',
+          message: 'Remote screenshot failed: No displays found'
+        });
+      }
       return { 
         success: false, 
         error: 'No displays found',
@@ -377,6 +405,14 @@ async function takeScreenshotForEmployee(employeeId, timeLogId = null, adminRequ
     
     // Check if we got a valid image (permission check)
     if (!image || image.isEmpty()) {
+      // Emit error toast
+      if (mainWindow) {
+        // console.log('Emitting error toast: Permission denied (remote)');
+        mainWindow.webContents.send('screenshot-toast', { 
+          type: 'error',
+          message: 'Remote screenshot failed: Permission denied'
+        });
+      }
       return { 
         success: false, 
         error: 'Screenshot permission denied by Windows',
@@ -398,6 +434,9 @@ async function takeScreenshotForEmployee(employeeId, timeLogId = null, adminRequ
     const stats = fs.statSync(filepath);
     const fileSize = stats.size;
     
+    // Don't emit success toast here - let the frontend handle the sequence
+    // The start message will automatically transition to success after 3 seconds
+    
     return { 
       success: true, 
       filepath: filepath,
@@ -415,6 +454,15 @@ async function takeScreenshotForEmployee(employeeId, timeLogId = null, adminRequ
                              error.message.includes('denied') ||
                              error.message.includes('blocked');
     
+    // Emit error toast
+    if (mainWindow) {
+      // console.log('Emitting remote screenshot error toast:', error.message);
+      mainWindow.webContents.send('screenshot-toast', { 
+        type: 'error',
+        message: `Remote screenshot failed: ${error.message}`
+      });
+    }
+    
     return { 
       success: false, 
       error: error.message,
@@ -422,6 +470,68 @@ async function takeScreenshotForEmployee(employeeId, timeLogId = null, adminRequ
     };
   }
 }
+
+// IPC handler for getting MAC address
+ipcMain.handle('get-mac-address', async (event) => {
+  try {
+    const os = require('os');
+    const interfaces = os.networkInterfaces();
+    
+    // console.log('Available network interfaces:', Object.keys(interfaces));
+    
+    // Priority order: Ethernet, WiFi, then others
+    const priorityOrder = ['Ethernet', 'Wi-Fi', 'WiFi', 'WLAN', 'Local Area Connection'];
+    
+    // First try priority interfaces
+    for (const priorityName of priorityOrder) {
+      if (interfaces[priorityName]) {
+        // console.log(`Checking priority interface: ${priorityName}`);
+        for (const iface of interfaces[priorityName]) {
+          // console.log(`Interface details:`, {
+          //   family: iface.family,
+          //   internal: iface.internal,
+          //   mac: iface.mac,
+          //   address: iface.address
+          // });
+          
+          if (iface.family === 'IPv4' && !iface.internal && iface.mac) {
+            // console.log(`Found MAC on priority interface ${priorityName}:`, iface.mac);
+            return { success: true, macAddress: iface.mac };
+          }
+        }
+      }
+    }
+    
+    // Then try all other interfaces
+    // console.log('Checking all other interfaces...');
+    for (const name of Object.keys(interfaces)) {
+      if (!priorityOrder.includes(name)) {
+        // console.log(`Checking interface: ${name}`);
+        for (const iface of interfaces[name]) {
+          // console.log(`Interface details:`, {
+          //   family: iface.family,
+          //   internal: iface.internal,
+          //   mac: iface.mac,
+          //   address: iface.address
+          // });
+          
+          // Skip internal and non-IPv4 addresses
+          if (iface.family === 'IPv4' && !iface.internal && iface.mac) {
+            // console.log(`Found MAC on interface ${name}:`, iface.mac);
+            return { success: true, macAddress: iface.mac };
+          }
+        }
+      }
+    }
+    
+    // console.log('No suitable MAC address found in any interface');
+    return { success: false, error: 'No MAC address found' };
+    
+  } catch (error) {
+    console.error('Error getting MAC address:', error);
+    return { success: false, error: error.message };
+  }
+});
 
 // IPC handler for opening external URLs
 ipcMain.handle('open-external', async (event, url) => {
@@ -436,17 +546,17 @@ ipcMain.handle('open-external', async (event, url) => {
 
 // IPC handler for taking screenshots (existing functionality)
 ipcMain.handle('take-screenshot', async (event) => {
-  console.log('take-screenshot IPC handler called');
+  // console.log('take-screenshot IPC handler called');
   
   // Emit toast start event
   if (mainWindow) {
-    console.log('Emitting start toast event');
+    // console.log('Emitting start toast event');
     mainWindow.webContents.send('screenshot-toast', { 
       type: 'start', 
       message: 'Taking screenshot...' 
     });
   } else {
-    console.log('mainWindow not available for toast emission');
+    // console.log('mainWindow not available for toast emission');
   }
 
   try {
@@ -465,7 +575,7 @@ ipcMain.handle('take-screenshot', async (event) => {
     if (sources.length === 0) {
       // Emit error toast
       if (mainWindow) {
-        console.log('Emitting error toast: No displays found');
+        // console.log('Emitting error toast: No displays found');
         mainWindow.webContents.send('screenshot-toast', { 
           type: 'error',
           message: 'Screenshot failed: No displays found'
@@ -486,7 +596,7 @@ ipcMain.handle('take-screenshot', async (event) => {
     if (!image || image.isEmpty()) {
       // Emit error toast
       if (mainWindow) {
-        console.log('Emitting error toast: Permission denied');
+        // console.log('Emitting error toast: Permission denied');
         mainWindow.webContents.send('screenshot-toast', { 
           type: 'error',
           message: 'Screenshot failed: Permission denied'
@@ -512,14 +622,8 @@ ipcMain.handle('take-screenshot', async (event) => {
     const stats = fs.statSync(filepath);
     const fileSize = stats.size;
     
-    // Emit success toast
-    if (mainWindow) {
-      console.log('Emitting success toast');
-      mainWindow.webContents.send('screenshot-toast', { 
-        type: 'success',
-        message: 'Screenshot saved successfully!'
-      });
-    }
+    // Don't emit success toast here - let the frontend handle the sequence
+    // The start message will automatically transition to success after 3 seconds
     
     return { 
       success: true, 
@@ -537,7 +641,7 @@ ipcMain.handle('take-screenshot', async (event) => {
     
     // Emit error toast
     if (mainWindow) {
-      console.log('Emitting error toast:', error.message);
+      // console.log('Emitting error toast:', error.message);
       mainWindow.webContents.send('screenshot-toast', { 
         type: 'error',
         message: `Screenshot failed: ${error.message}`
@@ -555,7 +659,7 @@ ipcMain.handle('take-screenshot', async (event) => {
 // IPC handler for setting employee ID
 ipcMain.handle('set-employee-id', async (event, employeeId) => {
   currentEmployeeId = employeeId;
-  console.log(`Employee ID set via IPC: ${employeeId}`);
+  // console.log(`Employee ID set via IPC: ${employeeId}`);
   return { success: true, employeeId };
 });
 
@@ -591,4 +695,4 @@ app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
   }
-}); 
+});

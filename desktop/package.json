@@ -10,7 +10,7 @@
   "scripts": {
     "start": "concurrently \"npm run start:react\" \"npm run start:electron\"",
     "start:react": "cross-env PORT=3001 BROWSER=none react-scripts start",
-    "start:electron": "electron .",
+    "start:electron": "cross-env NODE_ENV=development electron .",
     "build": "npm run build:react",
     "build:react": "react-scripts build",
     "build:win": "npm run build:react && electron-packager . \"Inciteful\" --platform=win32 --arch=x64 --out=dist --overwrite --icon=assets/icon.ico --prune=true",

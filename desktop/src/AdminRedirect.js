@@ -7,20 +7,22 @@ const AdminRedirect = () => {
   const dispatch = useDispatch();
 
   const handleOpenWebApp = async () => {
-    console.log('Button clicked!');
-    console.log('electronAPI available:', !!window.electronAPI);
+    // console.log('Button clicked!');
+    // console.log('electronAPI available:', !!window.electronAPI);
+
+    WEB_URL = process.env.REACT_WEB_URL || 'http://localhost:3000';
     
     try {
       // Try electron API first
       if (window.electronAPI && typeof window.electronAPI.openExternal === 'function') {
-        console.log('Using electronAPI.openExternal');
-        const result = await window.electronAPI.openExternal('https://localhost:3000');
+        // console.log('Using electronAPI.openExternal');
+        const result = await window.electronAPI.openExternal(WEB_URL);
         console.log('Result:', result);
       } else {
-        console.log('electronAPI not available, using fallback');
+        // console.log('electronAPI not available, using fallback');
         // Fallback: try to open using the window.open handler we set up
         const link = document.createElement('a');
-        link.href = 'https://localhost:3000';
+        link.href = WEB_URL;
         link.target = '_blank';
         link.rel = 'noopener noreferrer';
         document.body.appendChild(link);
@@ -30,7 +32,7 @@ const AdminRedirect = () => {
     } catch (error) {
       console.error('Error opening external URL:', error);
       // Final fallback
-      alert('Could not open web app. Please manually navigate to https://localhost:3000');
+      alert(`Could not open web app. Please manually navigate to ${WEB_URL}`);
     }
   };
 

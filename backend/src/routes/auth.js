@@ -56,8 +56,8 @@ router.post('/signup', async (req, res) => {
     await emailVerificationToken.save();
 
     // Send verification email
-    const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
-    const verificationLink = `${BASE_URL}/verify-email/${token}`;
+    const WEB_URL = process.env.WEB_URL || 'http://localhost:3000';
+    const verificationLink = `${WEB_URL}/verify-email/${token}`;
     const emailHtml = `
       <h2>Welcome to Mercor Time Tracker!</h2>
       <p>Hi ${firstName},</p>
@@ -264,7 +264,7 @@ router.post('/send-activation-email', async (req, res) => {
     activationTokens.set(token, { email, fullName, createdAt: Date.now() });
 
     // Send activation email
-    const activationLink = `http://localhost:3000/activate?token=${token}`;
+    const activationLink = `${WEB_URL}/activate?token=${token}`;
     const emailHtml = `
       <h2>Welcome to Mercor Time Tracker!</h2>
       <p>Hi ${fullName},</p>

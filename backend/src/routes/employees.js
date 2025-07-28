@@ -12,7 +12,7 @@ const router = express.Router();
 router.post('/', async (req, res) => {
   try {
     const { firstName, lastName, email, gender, password } = req.body;
-    console.log('Received employee data:', { firstName, lastName, email, gender, password: '***' });
+    // console.log('Received employee data:', { firstName, lastName, email, gender, password: '***' });
     
     if (!firstName || !lastName || !email || !gender || !password) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -91,11 +91,11 @@ router.get('/test-working', async (req, res) => {
     
     // Get all time logs
     const allTimeLogs = await TimeLog.find({});
-    console.log('All time logs:', allTimeLogs);
+    // console.log('All time logs:', allTimeLogs);
     
     // Get active time logs
     const activeTimeLogs = await TimeLog.find({ clockOut: null });
-    console.log('Active time logs:', activeTimeLogs);
+    // console.log('Active time logs:', activeTimeLogs);
     
     res.json({
       allTimeLogs: allTimeLogs.length,
@@ -216,43 +216,66 @@ router.patch('/:_id/toggle-status', async (req, res) => {
   }
 });
 
-// POST /update-ip - Update employee's IP address
+// POST /update-ip - Update employee's IP address and MAC address
 router.post('/update-ip', async (req, res) => {
   try {
-    const { employeeId, ipAddress } = req.body;
+    const { employeeId, ipAddress, macAddress } = req.body;
+    
+    // console.log('Received update-ip request:', { employeeId, ipAddress, macAddress });
     
     if (!employeeId || !ipAddress) {
+      console.log('Missing required fields:', { employeeId, ipAddress });
       return res.status(400).json({ error: 'Employee ID and IP address required' });
     }
     
+    const updateData = { 
+      ipAddress: ipAddress,
+      lastLoginAt: new Date()
+    };
+    
+    // Add MAC address if provided
+    if (macAddress) {
+      updateData.macAddress = macAddress;
+      // console.log('Adding MAC address to update:', macAddress);
+    } else {
+      // console.log('No MAC address provided in request');
+    }
+    
+    // console.log('Final update data:', updateData);
+    
     const employee = await Employee.findByIdAndUpdate(
       employeeId,
-      { 
-        ipAddress: ipAddress,
-        lastLoginAt: new Date()
-      },
+      updateData,
       { new: true }
     ).select('-passwordHash');
     
     if (!employee) {
+      console.log('Employee not found:', employeeId);
       return res.status(404).json({ error: 'Employee not found' });
     }
+    
+    // console.log('Employee updated successfully:', {
+    //   id: employee._id,
+    //   ipAddress: employee.ipAddress,
+    //   macAddress: employee.macAddress,
+    //   lastLoginAt: employee.lastLoginAt
+    // });
     
     res.json({ 
       success: true, 
       employee: employee,
-      message: 'IP address updated successfully'
+      message: 'IP address and MAC address updated successfully'
     });
   } catch (err) {
-    console.error('Error updating employee IP:', err);
+    console.error('Error updating employee IP and MAC:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// GET /test-ip/:employeeId - Test endpoint to check employee IP
+// GET /test-ip/:employeeId - Test endpoint to check employee IP and MAC
 router.get('/test-ip/:employeeId', async (req, res) => {
   try {
-    const employee = await Employee.findById(req.params.employeeId).select('ipAddress lastLoginAt');
+    const employee = await Employee.findById(req.params.employeeId).select('ipAddress macAddress lastLoginAt');
     
     if (!employee) {
       return res.status(404).json({ error: 'Employee not found' });
@@ -261,11 +284,13 @@ router.get('/test-ip/:employeeId', async (req, res) => {
     res.json({
       employeeId: req.params.employeeId,
       ipAddress: employee.ipAddress,
+      macAddress: employee.macAddress,
       lastLoginAt: employee.lastLoginAt,
-      hasIP: !!employee.ipAddress
+      hasIP: !!employee.ipAddress,
+      hasMAC: !!employee.macAddress
     });
   } catch (err) {
-    console.error('Error checking employee IP:', err);
+    console.error('Error checking employee IP and MAC:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
