@@ -4,7 +4,7 @@ import axios from 'axios';
 import { colors, typography, spacing, shadows, borderRadius, transitions, createButtonStyle, createCardStyle, createBadgeStyle } from './styles';
 import { setSelectedTasks, setCurrentTimeLog, setTaskStatus } from './store';
 
-const API_BASE = `${process.env.REACT_BACKEND_URL || 'http://localhost:4000'}/api`;
+const API_BASE = `${process.env.REACT_APP_BACKEND_URL || 'http://localhost:4000'}/api`;
 
 const Tasks = () => {
   const dispatch = useDispatch();

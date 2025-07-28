@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
-const BACKEND_URL = process.env.REACT_BACKEND_URL || 'http://localhost:4000';
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:4000';
 const API_BASE = `${BACKEND_URL}/api/auth`;
 
 const VerifyEmailPage = () => {

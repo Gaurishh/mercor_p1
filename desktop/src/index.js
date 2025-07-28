@@ -13,7 +13,7 @@ import { store } from './store';
 import { setAuth, clearAuth, stopWork } from './store';
 
 // API Configuration
-const API_BASE = `${process.env.REACT_BACKEND_URL || 'http://localhost:4000'}/api`;
+const API_BASE = `${process.env.REACT_APP_BACKEND_URL || 'http://localhost:4000'}/api`;
 const ELECTRON_HTTP_URL = process.env.ELECTRON_HTTP_URL || 'http://localhost:3003';
 
 // Error Boundary Component

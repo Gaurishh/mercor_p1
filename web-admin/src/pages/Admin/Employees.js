@@ -3,7 +3,7 @@ import axios from 'axios';
 import { colors, typography, spacing, shadows, borderRadius, transitions, createButtonStyle, createInputStyle, createBadgeStyle } from '../../styles';
 import { useNavigate } from 'react-router-dom';
 
-const BACKEND_URL = process.env.REACT_BACKEND_URL || 'http://localhost:4000';
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:4000';
 const API = `${BACKEND_URL}/api/employees`;
 
 const Employees = () => {
@@ -81,7 +81,7 @@ const Employees = () => {
       
       // Send email with activation link
       try {
-        await axios.post(`${process.env.REACT_BACKEND_URL}/api/auth/send-activation-email`, {
+        await axios.post(`${process.env.REACT_APP_BACKEND_URL}/api/auth/send-activation-email`, {
         email: inviteForm.email,
           fullName: inviteForm.fullName,
           token: token

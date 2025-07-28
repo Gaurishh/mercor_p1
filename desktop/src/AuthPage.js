@@ -4,7 +4,7 @@ import axios from 'axios';
 import { colors, typography, spacing, shadows, borderRadius, transitions, createButtonStyle, createInputStyle } from './styles';
 import { setAuth } from './store';
 
-const API_BASE = `${process.env.REACT_BACKEND_URL || 'http://localhost:4000'}/api/auth`;
+const API_BASE = `${process.env.REACT_APP_BACKEND_URL || 'http://localhost:4000'}/api/auth`;
 
 const AuthPage = () => {
   const dispatch = useDispatch();

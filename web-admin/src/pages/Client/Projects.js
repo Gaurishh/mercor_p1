@@ -4,7 +4,7 @@ import { colors, typography, spacing, shadows, borderRadius, transitions, create
 
 console.log('Projects component rendered');
 
-const BACKEND_URL = process.env.REACT_BACKEND_URL || 'http://localhost:4000';
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:4000';
 
 const PROJECTS_API = `${BACKEND_URL}/api/projects`;
 const TASKS_API = `${BACKEND_URL}/api/tasks`;
