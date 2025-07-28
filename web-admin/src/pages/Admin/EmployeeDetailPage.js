@@ -666,15 +666,34 @@ const EmployeeDetailPage = () => {
 
           {activeSection === 'screenshots' && (
             <div>
-              <h2 style={{
-                fontSize: typography.fontSize.xl,
-                fontWeight: typography.fontWeight.bold,
-                color: colors.gray[900],
-                margin: 0,
-                marginBottom: spacing[6],
-              }}>
-                Screenshots
-              </h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: spacing[4], marginBottom: spacing[6] }}>
+                <h2 style={{
+                  fontSize: typography.fontSize.xl,
+                  fontWeight: typography.fontWeight.bold,
+                  color: colors.gray[900],
+                  margin: 0,
+                }}>
+                  Screenshots
+                </h2>
+                <button
+                  onClick={fetchScreenshots}
+                  style={{
+                    backgroundColor: colors.primary[600],
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: borderRadius.md,
+                    padding: `${spacing[2]} ${spacing[4]}`,
+                    fontSize: typography.fontSize.sm,
+                    fontWeight: typography.fontWeight.medium,
+                    cursor: screenshotsLoading ? 'not-allowed' : 'pointer',
+                    opacity: screenshotsLoading ? 0.7 : 1,
+                    transition: 'opacity 0.2s',
+                  }}
+                  disabled={screenshotsLoading}
+                >
+                  {screenshotsLoading ? 'Refreshing...' : 'Refresh'}
+                </button>
+              </div>
               
               {screenshotsLoading ? (
                 <div style={{
